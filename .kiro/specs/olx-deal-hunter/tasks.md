@@ -117,7 +117,7 @@
     -   Add manual crawl trigger functionality for testing and debugging
     -   _Requirements: 7.1, 7.2, 7.3, 7.5_
 
--   [ ] 14. Create developer documentation and MCP integration notes
+-   [x] 14. Create developer documentation and MCP integration notes
 
     -   Document Playwright MCP findings in docs/dev/playwright-mcp-notes.md
     -   Include HTML snippets, selectors, and DOM structure analysis
