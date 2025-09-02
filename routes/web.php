@@ -61,14 +61,8 @@ Route::middleware('auth')->group(function () {
     // Hunted Deals routes
     Route::resource('hunted-deals', App\Http\Controllers\HuntedDealController::class);
     
-    // Deals routes (placeholder - will be implemented in task 10)
-    Route::get('/deals', function () {
-        return redirect()->route('dashboard')->with('info', 'Deals listing will be available soon.');
-    })->name('deals.index');
-    
-    Route::get('/deals/{id}', function () {
-        return redirect()->route('dashboard')->with('info', 'Deal details will be available soon.');
-    })->name('deals.show');
+    // Deals routes
+    Route::resource('deals', App\Http\Controllers\DealController::class)->only(['index', 'show']);
 });
 
 require __DIR__.'/auth.php';

@@ -81,7 +81,7 @@
     -   Implement soft delete functionality with cascading to related deals
     -   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
--   [ ] 10. Build deals listing and filtering interface
+-   [x] 10. Build deals listing and filtering interface
 
     -   Create DealController with index method supporting pagination and filters
     -   Implement filtering by price drops, new items (24h), matches_intent, and likely_working
