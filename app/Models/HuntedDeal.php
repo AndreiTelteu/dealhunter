@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class HuntedDeal extends Model
 {
+    use SoftDeletes;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -31,6 +34,7 @@ class HuntedDeal extends Model
         return [
             'is_active' => 'boolean',
             'last_crawled_at' => 'datetime',
+            'deleted_at' => 'datetime',
         ];
     }
 
@@ -48,5 +52,23 @@ class HuntedDeal extends Model
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
+    }
+
+    /**
+     * Boot the model and add event listeners.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // When a hunted deal is soft deleted, also soft delete all related deals
+        static::deleting(function ($huntedDeal) {
+            $huntedDeal->deals()->delete();
+        });
+
+        // When a hunted deal is restored, also restore all related deals
+        static::restoring(function ($huntedDeal) {
+            $huntedDeal->deals()->withTrashed()->restore();
+        });
     }
 }

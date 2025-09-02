@@ -58,22 +58,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
-    // Hunted Deals routes (placeholder - will be implemented in task 9)
-    Route::get('/hunted-deals', function () {
-        return redirect()->route('dashboard')->with('info', 'Hunted Deals management will be available soon.');
-    })->name('hunted-deals.index');
-    
-    Route::get('/hunted-deals/create', function () {
-        return redirect()->route('dashboard')->with('info', 'Hunted Deals creation will be available soon.');
-    })->name('hunted-deals.create');
-    
-    Route::get('/hunted-deals/{id}', function () {
-        return redirect()->route('dashboard')->with('info', 'Hunted Deals details will be available soon.');
-    })->name('hunted-deals.show');
-    
-    Route::get('/hunted-deals/{id}/edit', function () {
-        return redirect()->route('dashboard')->with('info', 'Hunted Deals editing will be available soon.');
-    })->name('hunted-deals.edit');
+    // Hunted Deals routes
+    Route::resource('hunted-deals', App\Http\Controllers\HuntedDealController::class);
     
     // Deals routes (placeholder - will be implemented in task 10)
     Route::get('/deals', function () {

@@ -6,9 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Deal extends Model
 {
+    use SoftDeletes;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -47,6 +50,7 @@ class Deal extends Model
             'likely_working' => 'boolean',
             'posted_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'deleted_at' => 'datetime',
         ];
     }
 
