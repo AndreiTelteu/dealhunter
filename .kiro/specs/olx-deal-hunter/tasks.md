@@ -28,7 +28,8 @@
     -   Define proper fillable fields, casts, and validation rules
     -   _Requirements: 2.1, 6.1, 6.2, 6.4_
 
--   [ ] 4. Build core service classes for business logic
+-   [x] 4. Build core service classes for business logic
+
 
     -   Create OlxSelectors class with centralized CSS selectors and MCP documentation references
     -   Create PriceParserService for currency detection, numeric extraction, and RON conversion
@@ -37,6 +38,7 @@
     -   _Requirements: 8.3, 3.4, 4.1, 4.2, 4.5_
 
 -   [ ] 5. Implement Playwright MCP integration service
+
 
     -   Create OlxCrawlerService with MCP connection and browser automation
     -   Implement search navigation, results extraction, and pagination handling
