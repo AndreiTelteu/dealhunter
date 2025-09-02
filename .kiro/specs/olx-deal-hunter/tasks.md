@@ -54,7 +54,7 @@
     -   Implement proper transaction handling for data consistency
     -   _Requirements: 3.5, 3.6, 6.1, 6.2, 6.3_
 
--   [ ] 7. Create scheduled crawling command
+-   [x] 7. Create scheduled crawling command
 
     -   Create CrawlDealsCommand with signature and options for dry-run and specific hunted deals
     -   Implement active hunted deals processing loop with error isolation
