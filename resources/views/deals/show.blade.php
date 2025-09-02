@@ -124,54 +124,156 @@
                             <div class="p-6">
                                 <h3 class="text-lg font-medium text-gray-900 mb-4">Price History</h3>
                                 
-                                <!-- Simple SVG Chart -->
                                 @php
                                     $priceSnapshots = $deal->snapshots->where('price_amount', '!=', null)->sortBy('captured_at');
                                     $minPrice = $priceSnapshots->min('price_amount');
                                     $maxPrice = $priceSnapshots->max('price_amount');
-                                    $priceRange = $maxPrice - $minPrice;
-                                    $chartWidth = 600;
-                                    $chartHeight = 200;
-                                    $padding = 40;
+                                    $priceRange = max($maxPrice - $minPrice, 1); // Avoid division by zero
+                                    $chartWidth = 700;
+                                    $chartHeight = 250;
+                                    $padding = 50;
+                                    $bottomPadding = 80;
+                                    
+                                    // Calculate price statistics
+                                    $currentPrice = $priceSnapshots->last()->price_amount;
+                                    $firstPrice = $priceSnapshots->first()->price_amount;
+                                    $priceChange = $currentPrice - $firstPrice;
+                                    $priceChangePercent = $firstPrice > 0 ? (($priceChange / $firstPrice) * 100) : 0;
+                                    $lowestPrice = $minPrice;
+                                    $highestPrice = $maxPrice;
                                 @endphp
                                 
+                                <!-- Price Statistics -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                                    <div class="text-center">
+                                        <div class="text-sm font-medium text-gray-500">Current</div>
+                                        <div class="text-lg font-bold text-gray-900">{{ number_format($currentPrice, 0) }} {{ $deal->price_currency }}</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-sm font-medium text-gray-500">Change</div>
+                                        <div class="text-lg font-bold {{ $priceChange >= 0 ? 'text-red-600' : 'text-green-600' }}">
+                                            {{ $priceChange >= 0 ? '+' : '' }}{{ number_format($priceChange, 0) }} {{ $deal->price_currency }}
+                                            <div class="text-xs">({{ $priceChange >= 0 ? '+' : '' }}{{ number_format($priceChangePercent, 1) }}%)</div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-sm font-medium text-gray-500">Lowest</div>
+                                        <div class="text-lg font-bold text-green-600">{{ number_format($lowestPrice, 0) }} {{ $deal->price_currency }}</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-sm font-medium text-gray-500">Highest</div>
+                                        <div class="text-lg font-bold text-red-600">{{ number_format($highestPrice, 0) }} {{ $deal->price_currency }}</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Enhanced SVG Chart -->
                                 <div class="overflow-x-auto">
-                                    <svg width="{{ $chartWidth }}" height="{{ $chartHeight + $padding * 2 }}" class="border rounded">
-                                        <!-- Grid lines -->
-                                        @for($i = 0; $i <= 4; $i++)
+                                    <svg width="{{ $chartWidth }}" height="{{ $chartHeight + $padding + $bottomPadding }}" class="border rounded bg-white">
+                                        <!-- Background -->
+                                        <rect width="100%" height="100%" fill="#fafafa"/>
+                                        
+                                        <!-- Horizontal grid lines -->
+                                        @for($i = 0; $i <= 5; $i++)
                                             @php
-                                                $y = $padding + ($i * $chartHeight / 4);
-                                                $price = $maxPrice - ($i * $priceRange / 4);
+                                                $y = $padding + ($i * $chartHeight / 5);
+                                                $price = $maxPrice - ($i * $priceRange / 5);
                                             @endphp
-                                            <line x1="{{ $padding }}" y1="{{ $y }}" x2="{{ $chartWidth - $padding }}" y2="{{ $y }}" stroke="#e5e7eb" stroke-width="1"/>
-                                            <text x="{{ $padding - 5 }}" y="{{ $y + 4 }}" text-anchor="end" class="text-xs fill-gray-500">
+                                            <line x1="{{ $padding }}" y1="{{ $y }}" x2="{{ $chartWidth - $padding }}" y2="{{ $y }}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="2,2"/>
+                                            <text x="{{ $padding - 10 }}" y="{{ $y + 4 }}" text-anchor="end" class="text-xs fill-gray-600" font-family="system-ui">
                                                 {{ number_format($price, 0) }}
                                             </text>
                                         @endfor
                                         
-                                        <!-- Price line -->
+                                        <!-- Vertical grid lines and date labels -->
+                                        @foreach($priceSnapshots as $index => $snapshot)
+                                            @if($index % max(1, floor($priceSnapshots->count() / 6)) === 0 || $index === $priceSnapshots->count() - 1)
+                                                @php
+                                                    $x = $padding + ($index * ($chartWidth - $padding * 2) / ($priceSnapshots->count() - 1));
+                                                @endphp
+                                                <line x1="{{ $x }}" y1="{{ $padding }}" x2="{{ $x }}" y2="{{ $padding + $chartHeight }}" stroke="#f3f4f6" stroke-width="1"/>
+                                                <text x="{{ $x }}" y="{{ $padding + $chartHeight + 20 }}" text-anchor="middle" class="text-xs fill-gray-600" font-family="system-ui">
+                                                    {{ $snapshot->captured_at->format('M j') }}
+                                                </text>
+                                                <text x="{{ $x }}" y="{{ $padding + $chartHeight + 35 }}" text-anchor="middle" class="text-xs fill-gray-500" font-family="system-ui">
+                                                    {{ $snapshot->captured_at->format('Y') }}
+                                                </text>
+                                            @endif
+                                        @endforeach
+                                        
+                                        <!-- Price area fill -->
                                         @php
-                                            $points = [];
+                                            $areaPoints = [];
                                             foreach($priceSnapshots as $index => $snapshot) {
                                                 $x = $padding + ($index * ($chartWidth - $padding * 2) / ($priceSnapshots->count() - 1));
                                                 $y = $padding + (($maxPrice - $snapshot->price_amount) / $priceRange) * $chartHeight;
-                                                $points[] = "$x,$y";
+                                                $areaPoints[] = "$x,$y";
                                             }
-                                            $pathData = 'M ' . implode(' L ', $points);
+                                            // Close the area
+                                            $lastX = $padding + (($priceSnapshots->count() - 1) * ($chartWidth - $padding * 2) / ($priceSnapshots->count() - 1));
+                                            $firstX = $padding;
+                                            $bottomY = $padding + $chartHeight;
+                                            $areaPath = 'M ' . implode(' L ', $areaPoints) . " L $lastX,$bottomY L $firstX,$bottomY Z";
                                         @endphp
+                                        <path d="{{ $areaPath }}" fill="url(#priceGradient)" opacity="0.3"/>
                                         
-                                        <path d="{{ $pathData }}" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                                        <!-- Gradient definition -->
+                                        <defs>
+                                            <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.8" />
+                                                <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1" />
+                                            </linearGradient>
+                                        </defs>
                                         
-                                        <!-- Data points -->
+                                        <!-- Price line -->
+                                        @php
+                                            $pathData = 'M ' . implode(' L ', $areaPoints);
+                                        @endphp
+                                        <path d="{{ $pathData }}" fill="none" stroke="#3b82f6" stroke-width="3"/>
+                                        
+                                        <!-- Data points with hover effects -->
                                         @foreach($priceSnapshots as $index => $snapshot)
                                             @php
                                                 $x = $padding + ($index * ($chartWidth - $padding * 2) / ($priceSnapshots->count() - 1));
                                                 $y = $padding + (($maxPrice - $snapshot->price_amount) / $priceRange) * $chartHeight;
+                                                $isLowest = $snapshot->price_amount == $lowestPrice;
+                                                $isHighest = $snapshot->price_amount == $highestPrice;
+                                                $isFirst = $index === 0;
+                                                $isLast = $index === $priceSnapshots->count() - 1;
                                             @endphp
-                                            <circle cx="{{ $x }}" cy="{{ $y }}" r="4" fill="#3b82f6"/>
-                                            <title>{{ number_format($snapshot->price_amount, 0) }} {{ $snapshot->price_currency }} - {{ $snapshot->captured_at->format('M j, Y') }}</title>
+                                            
+                                            <!-- Highlight special points -->
+                                            @if($isLowest || $isHighest)
+                                                <circle cx="{{ $x }}" cy="{{ $y }}" r="8" fill="{{ $isLowest ? '#10b981' : '#ef4444' }}" opacity="0.2"/>
+                                            @endif
+                                            
+                                            <circle cx="{{ $x }}" cy="{{ $y }}" r="5" fill="#ffffff" stroke="#3b82f6" stroke-width="2"/>
+                                            <circle cx="{{ $x }}" cy="{{ $y }}" r="3" fill="{{ $isLowest ? '#10b981' : ($isHighest ? '#ef4444' : '#3b82f6') }}"/>
+                                            
+                                            <!-- Tooltip -->
+                                            <title>{{ number_format($snapshot->price_amount, 0) }} {{ $snapshot->price_currency }} - {{ $snapshot->captured_at->format('M j, Y g:i A') }}</title>
                                         @endforeach
+                                        
+                                        <!-- Chart title -->
+                                        <text x="{{ $chartWidth / 2 }}" y="25" text-anchor="middle" class="text-sm font-medium fill-gray-700" font-family="system-ui">
+                                            Price History ({{ $priceSnapshots->count() }} data points)
+                                        </text>
                                     </svg>
+                                </div>
+                                
+                                <!-- Chart Legend -->
+                                <div class="flex justify-center mt-4 space-x-6 text-sm">
+                                    <div class="flex items-center">
+                                        <div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                                        <span class="text-gray-600">Price Points</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                                        <span class="text-gray-600">Lowest Price</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <div class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                                        <span class="text-gray-600">Highest Price</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -181,18 +283,19 @@
                     @if($deal->snapshots->count() > 0)
                         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                             <div class="p-6">
-                                <h3 class="text-lg font-medium text-gray-900 mb-4">Change Timeline</h3>
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                                    Change Timeline
+                                    <span class="text-sm font-normal text-gray-500">({{ $deal->snapshots->count() }} snapshots)</span>
+                                </h3>
                                 
                                 <div class="flow-root">
                                     <ul class="-mb-8">
                                         @foreach($deal->snapshots as $index => $snapshot)
+                                            @php
+                                                $previousSnapshot = $index < $deal->snapshots->count() - 1 ? $deal->snapshots[$index + 1] : null;
+                                            @endphp
                                             <li>
-                                                <div class="relative pb-8">
-                                                    @if(!$loop->last)
-                                                        <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
-                                                    @endif
-                                                    
-                                                    <div class="relative flex space-x-3">
+                                                <div class="relative flex space-x-3">
                                                         <div>
                                                             <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
                                                                 <svg class="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -249,7 +352,6 @@
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
                                             </li>
                                         @endforeach
                                     </ul>

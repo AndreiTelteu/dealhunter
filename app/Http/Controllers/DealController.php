@@ -6,7 +6,7 @@ use App\Models\Deal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+
 use Illuminate\View\View;
 
 class DealController extends Controller
