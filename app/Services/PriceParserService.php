@@ -100,7 +100,7 @@ class PriceParserService extends BaseService
         $numericText = preg_replace('/[^\d.,\s]/', '', $text);
         
         // Handle different decimal separators
-        // Romanian format: 1.234,56 or 1 234,56
+        // Romanian format: 1.234,56 or 1 234,56 or 1.500 (thousands separator)
         // International format: 1,234.56 or 1234.56
         
         // Remove spaces
@@ -110,16 +110,22 @@ class PriceParserService extends BaseService
             return null;
         }
         
-        // Check if it looks like Romanian format (comma as decimal separator)
-        if (preg_match('/^\d{1,3}(?:\.\d{3})*,\d{2}$/', $numericText)) {
-            // Romanian format: 1.234,56
+        // Check if it looks like Romanian format with comma as decimal separator
+        if (preg_match('/^\d{1,3}(?:\.\d{3})*,\d{1,2}$/', $numericText)) {
+            // Romanian format: 1.234,56 or 3.999,99
             $numericText = str_replace('.', '', $numericText); // Remove thousands separator
             $numericText = str_replace(',', '.', $numericText); // Convert decimal separator
-        } elseif (preg_match('/^\d+,\d{2}$/', $numericText)) {
-            // Simple Romanian format: 1234,56
+        } elseif (preg_match('/^\d+,\d{1,2}$/', $numericText)) {
+            // Simple Romanian format: 1234,56 or 2300,5
             $numericText = str_replace(',', '.', $numericText);
-        } elseif (preg_match('/^\d{1,3}(?:,\d{3})*\.\d{2}$/', $numericText)) {
+        } elseif (preg_match('/^\d{1,3}(?:\.\d{3})+$/', $numericText)) {
+            // Romanian thousands format without decimals: 1.500, 2.300
+            $numericText = str_replace('.', '', $numericText); // Remove thousands separator
+        } elseif (preg_match('/^\d{1,3}(?:,\d{3})*\.\d{1,2}$/', $numericText)) {
             // International format: 1,234.56
+            $numericText = str_replace(',', '', $numericText); // Remove thousands separator
+        } elseif (preg_match('/^\d{1,3}(?:,\d{3})+$/', $numericText)) {
+            // International thousands format without decimals: 1,500
             $numericText = str_replace(',', '', $numericText); // Remove thousands separator
         }
         
