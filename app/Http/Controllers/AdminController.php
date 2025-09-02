@@ -1,0 +1,271 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\CrawlLog;
+use App\Models\SystemHealth;
+use App\Models\HuntedDeal;
+use App\Services\CrawlLogService;
+use App\Services\SystemHealthService;
+use App\Services\Crawlers\OlxCrawlerService;
+use App\Services\DealIngestionService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+
+class AdminController extends Controller
+{
+    public function __construct(
+        private CrawlLogService $crawlLogService,
+        private SystemHealthService $healthService
+    ) {
+        // Add admin middleware when implemented
+        // $this->middleware('admin');
+    }
+
+    /**
+     * Show admin dashboard
+     */
+    public function dashboard()
+    {
+        // Get recent crawl statistics
+        $crawlStats = $this->crawlLogService->getRecentStats(24);
+        
+        // Get system health
+        $systemHealth = $this->healthService->getOverallHealth();
+        
+        // Get recent crawl logs
+        $recentCrawls = CrawlLog::with('user')
+            ->recent(24)
+            ->orderBy('started_at', 'desc')
+            ->limit(10)
+            ->get();
+        
+        // Get active hunted deals count
+        $activeHuntedDeals = HuntedDeal::where('is_active', true)->count();
+        $totalDeals = \App\Models\Deal::count();
+        
+        // Get crawler configuration
+        $crawlerConfig = [
+            'max_pages_per_search' => config('crawler.max_pages_per_search', 3),
+            'request_delay_ms' => config('crawler.request_delay_ms', 2000),
+            'max_listings_per_run' => config('crawler.max_listings_per_run', 100),
+            'mcp_endpoint' => config('crawler.mcp_playwright_endpoint'),
+            'ai_classification_enabled' => config('features.ai_classification_enabled', true),
+        ];
+        
+        return view('admin.dashboard', compact(
+            'crawlStats',
+            'systemHealth',
+            'recentCrawls',
+            'activeHuntedDeals',
+            'totalDeals',
+            'crawlerConfig'
+        ));
+    }
+
+    /**
+     * Show crawl logs with filtering
+     */
+    public function crawlLogs(Request $request)
+    {
+        $query = CrawlLog::with('user')->orderBy('started_at', 'desc');
+        
+        // Apply filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        
+        if ($request->filled('date_from')) {
+            $query->where('started_at', '>=', Carbon::parse($request->date_from));
+        }
+        
+        if ($request->filled('date_to')) {
+            $query->where('started_at', '<=', Carbon::parse($request->date_to)->endOfDay());
+        }
+        
+        $logs = $query->paginate(20)->withQueryString();
+        
+        return view('admin.crawl-logs', compact('logs'));
+    }
+
+    /**
+     * Show system health monitoring
+     */
+    public function systemHealth()
+    {
+        // Run fresh health checks
+        $healthResults = $this->healthService->checkAllComponents();
+        
+        // Get overall health status
+        $overallHealth = $this->healthService->getOverallHealth();
+        
+        // Get recent health history for charts
+        $healthHistory = SystemHealth::recent(24 * 60) // Last 24 hours
+            ->orderBy('checked_at', 'desc')
+            ->get()
+            ->groupBy('component');
+        
+        return view('admin.system-health', compact(
+            'healthResults',
+            'overallHealth',
+            'healthHistory'
+        ));
+    }
+
+    /**
+     * Show configuration management
+     */
+    public function configuration()
+    {
+        $config = [
+            'crawler' => [
+                'max_pages_per_search' => config('crawler.max_pages_per_search', 3),
+                'request_delay_ms' => config('crawler.request_delay_ms', 2000),
+                'max_listings_per_run' => config('crawler.max_listings_per_run', 100),
+                'mcp_playwright_endpoint' => config('crawler.mcp_playwright_endpoint'),
+                'user_agent' => config('crawler.user_agent'),
+            ],
+            'features' => [
+                'ai_classification_enabled' => config('features.ai_classification_enabled', true),
+                'detail_page_crawling' => config('features.detail_page_crawling', false),
+                'image_url_extraction' => config('features.image_url_extraction', true),
+                'seller_info_extraction' => config('features.seller_info_extraction', true),
+            ],
+            'ai' => [
+                'provider' => config('ai.provider'),
+                'model' => config('ai.model'),
+                'confidence_threshold' => config('ai.confidence_threshold', 0.7),
+            ],
+            'currency' => [
+                'default_currency' => config('currency.default_currency', 'RON'),
+                'eur_to_ron_rate' => config('currency.eur_to_ron_rate', 4.95),
+                'usd_to_ron_rate' => config('currency.usd_to_ron_rate', 4.50),
+            ],
+        ];
+        
+        return view('admin.configuration', compact('config'));
+    }
+
+    /**
+     * Trigger manual crawl
+     */
+    public function triggerCrawl(Request $request)
+    {
+        $request->validate([
+            'hunted_deal_id' => 'nullable|exists:hunted_deals,id',
+            'dry_run' => 'boolean',
+            'notes' => 'nullable|string|max:500',
+        ]);
+        
+        try {
+            $command = 'deals:crawl';
+            $options = [];
+            
+            if ($request->boolean('dry_run')) {
+                $options['--dry-run'] = true;
+            }
+            
+            if ($request->filled('hunted_deal_id')) {
+                $options['--hunted-deal'] = $request->hunted_deal_id;
+            }
+            
+            // Start crawl log for manual trigger
+            $crawlLog = $this->crawlLogService->startCrawl(
+                'manual_crawl',
+                'admin',
+                auth()->user(),
+                $request->notes
+            );
+            
+            // Run the command
+            $exitCode = Artisan::call($command, $options);
+            
+            if ($exitCode === 0) {
+                return redirect()->back()->with('success', 'Manual crawl triggered successfully. Check crawl logs for results.');
+            } else {
+                $this->crawlLogService->failCrawl($crawlLog, 'Manual crawl command failed with exit code: ' . $exitCode);
+                return redirect()->back()->with('error', 'Manual crawl failed. Check logs for details.');
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Manual crawl trigger failed', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'request_data' => $request->all(),
+            ]);
+            
+            return redirect()->back()->with('error', 'Failed to trigger manual crawl: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Run system health check
+     */
+    public function runHealthCheck()
+    {
+        try {
+            $results = $this->healthService->checkAllComponents();
+            
+            $healthyCount = collect($results)->where('status', 'healthy')->count();
+            $totalCount = count($results);
+            
+            if ($healthyCount === $totalCount) {
+                return redirect()->back()->with('success', 'System health check completed. All components are healthy.');
+            } else {
+                $issues = collect($results)->where('status', '!=', 'healthy')->count();
+                return redirect()->back()->with('warning', "System health check completed. Found {$issues} component(s) with issues.");
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Health check failed', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+            ]);
+            
+            return redirect()->back()->with('error', 'Health check failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show crawl log details
+     */
+    public function showCrawlLog(CrawlLog $crawlLog)
+    {
+        return view('admin.crawl-log-detail', compact('crawlLog'));
+    }
+
+    /**
+     * Clean up old logs
+     */
+    public function cleanupLogs(Request $request)
+    {
+        $request->validate([
+            'crawl_logs_days' => 'required|integer|min:1|max:365',
+            'health_logs_days' => 'required|integer|min:1|max:90',
+        ]);
+        
+        try {
+            $crawlLogsDeleted = $this->crawlLogService->cleanupOldLogs($request->crawl_logs_days);
+            $healthLogsDeleted = $this->healthService->cleanupOldHealthChecks($request->health_logs_days);
+            
+            return redirect()->back()->with('success', 
+                "Cleanup completed. Deleted {$crawlLogsDeleted} crawl logs and {$healthLogsDeleted} health check records."
+            );
+            
+        } catch (\Exception $e) {
+            Log::error('Log cleanup failed', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'request_data' => $request->all(),
+            ]);
+            
+            return redirect()->back()->with('error', 'Log cleanup failed: ' . $e->getMessage());
+        }
+    }
+}

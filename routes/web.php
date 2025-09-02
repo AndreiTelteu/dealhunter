@@ -68,6 +68,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/ai-classification', [App\Http\Controllers\AiClassificationController::class, 'index'])->name('ai-classification.index');
     Route::post('/ai-classification/test', [App\Http\Controllers\AiClassificationController::class, 'test'])->name('ai-classification.test');
     Route::post('/ai-classification/test-connection', [App\Http\Controllers\AiClassificationController::class, 'testConnection'])->name('ai-classification.test-connection');
+    
+    // Admin routes
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/dashboard', [App\Http\Controllers\AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/crawl-logs', [App\Http\Controllers\AdminController::class, 'crawlLogs'])->name('crawl-logs');
+        Route::get('/crawl-logs/{crawlLog}', [App\Http\Controllers\AdminController::class, 'showCrawlLog'])->name('crawl-logs.show');
+        Route::get('/system-health', [App\Http\Controllers\AdminController::class, 'systemHealth'])->name('system-health');
+        Route::get('/configuration', [App\Http\Controllers\AdminController::class, 'configuration'])->name('configuration');
+        Route::post('/trigger-crawl', [App\Http\Controllers\AdminController::class, 'triggerCrawl'])->name('trigger-crawl');
+        Route::post('/run-health-check', [App\Http\Controllers\AdminController::class, 'runHealthCheck'])->name('run-health-check');
+        Route::post('/cleanup-logs', [App\Http\Controllers\AdminController::class, 'cleanupLogs'])->name('cleanup-logs');
+    });
 });
 
 require __DIR__.'/auth.php';
