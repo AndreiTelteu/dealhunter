@@ -11,7 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Add performance monitoring middleware to web routes
+        $middleware->web(append: [
+            \App\Http\Middleware\PerformanceMonitoring::class,
+            \App\Http\Middleware\SecurityMonitoring::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

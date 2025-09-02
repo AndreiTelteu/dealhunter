@@ -82,4 +82,8 @@ Route::middleware('auth')->group(function () {
     });
 });
 
+// Health check routes (no authentication required)
+Route::get('/health', [App\Http\Controllers\HealthController::class, 'check'])->name('health.check');
+Route::get('/ping', [App\Http\Controllers\HealthController::class, 'ping'])->name('health.ping');
+
 require __DIR__.'/auth.php';

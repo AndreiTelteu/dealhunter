@@ -1,0 +1,5 @@
+# Laravel Scheduler - runs every minute
+* * * * * cd /var/www && php artisan schedule:run >> /var/log/cron.log 2>&1
+
+# Log rotation for cron logs
+0 0 * * * find /var/log -name "*.log" -type f -mtime +7 -delete
