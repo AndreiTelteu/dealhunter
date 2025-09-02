@@ -45,7 +45,7 @@
     -   Implement robust selector-based data extraction with fallback strategies
     -   _Requirements: 3.1, 3.2, 3.3, 7.4, 8.1, 8.4_
 
--   [ ] 6. Build deal ingestion and snapshot management
+-   [x] 6. Build deal ingestion and snapshot management
 
     -   Create DealIngestionService for upserting deals and managing snapshots
     -   Implement change detection logic comparing current vs stored listing data
