@@ -63,6 +63,11 @@ Route::middleware('auth')->group(function () {
     
     // Deals routes
     Route::resource('deals', App\Http\Controllers\DealController::class)->only(['index', 'show']);
+    
+    // AI Classification routes
+    Route::get('/ai-classification', [App\Http\Controllers\AiClassificationController::class, 'index'])->name('ai-classification.index');
+    Route::post('/ai-classification/test', [App\Http\Controllers\AiClassificationController::class, 'test'])->name('ai-classification.test');
+    Route::post('/ai-classification/test-connection', [App\Http\Controllers\AiClassificationController::class, 'testConnection'])->name('ai-classification.test-connection');
 });
 
 require __DIR__.'/auth.php';

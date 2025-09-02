@@ -51,8 +51,40 @@ return [
     */
 
     'prompts' => [
-        'intent_matching' => 'Analyze if this listing matches the search intent for "{search_term}". Title: "{title}". Description: "{description}". Return true/false and confidence 0-1.',
-        'working_condition' => 'Analyze if this item is likely working based on the Romanian description: "{description}". Look for keywords indicating broken/defective items. Return true/false and confidence 0-1.',
+        'intent_matching' => 'Analyze if this Romanian marketplace listing matches the search intent.
+
+Search term: "{search_term}"
+Title: "{title}"
+Description: "{description}"
+
+Consider:
+- Does the title/description contain the search term or strong synonyms?
+- Is this the type of item the user is looking for?
+- Are there any obvious mismatches?
+
+Respond with JSON:
+{
+  "matches": boolean,
+  "confidence": float (0.0-1.0),
+  "reasoning": "Brief explanation of your decision"
+}',
+
+        'working_condition' => 'Analyze if this item is likely in working condition based on the Romanian listing.
+
+Title: "{title}"
+Description: "{description}"
+
+Look for Romanian keywords indicating:
+- Broken/defective: stricat, defect, pentru piese, nu funcționează, spart, deteriorat
+- Working: funcțional, merge perfect, stare bună, ca nou, testat
+- Uncertain: nu știu, posibil, cred că, nu garantez
+
+Respond with JSON:
+{
+  "working": boolean or null (null for uncertain),
+  "confidence": float (0.0-1.0),
+  "reasoning": "Brief explanation focusing on key indicators found"
+}',
     ],
 
 ];

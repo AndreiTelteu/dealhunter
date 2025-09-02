@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Crawlers\ParsedListing;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Http;
 class IntentClassifierService extends BaseService
 {
     protected string $logChannel = 'classifier';
+    
+    private AiService $aiService;
     
     /**
      * Romanian keywords indicating broken or non-working items
@@ -67,6 +70,12 @@ class IntentClassifierService extends BaseService
         'impecabil', 'impecabila',
     ];
     
+    public function __construct(AiService $aiService)
+    {
+        parent::__construct();
+        $this->aiService = $aiService;
+    }
+    
     /**
      * Classify a listing for intent matching and working condition
      * 
@@ -76,16 +85,96 @@ class IntentClassifierService extends BaseService
      */
     public function classifyListing(string $searchTerm, ParsedListing $listing): Classification
     {
-        $intentMatch = $this->matchesIntent($searchTerm, $listing->title, $listing->description);
-        $workingCondition = $this->assessWorkingCondition($listing->description);
+        return $this->executeWithErrorHandling(
+            function () use ($searchTerm, $listing) {
+                // Use AI classification if enabled, otherwise fall back to keyword-based
+                if (config('features.ai_classification_enabled', true)) {
+                    return $this->classifyWithAI($searchTerm, $listing);
+                } else {
+                    return $this->classifyWithKeywords($searchTerm, $listing);
+                }
+            },
+            [
+                'search_term' => $searchTerm,
+                'title' => $listing->title,
+                'external_id' => $listing->externalId
+            ],
+            'classify_listing'
+        );
+    }
+    
+    /**
+     * Classify using AI service
+     * 
+     * @param string $searchTerm
+     * @param ParsedListing $listing
+     * @return Classification
+     */
+    private function classifyWithAI(string $searchTerm, ParsedListing $listing): Classification
+    {
+        try {
+            $aiResult = $this->aiService->comprehensiveClassification($searchTerm, $listing);
+            
+            // Combine AI results with keyword analysis for better accuracy
+            $keywordResult = $this->classifyWithKeywords($searchTerm, $listing);
+            
+            // Use AI results but boost confidence if keyword analysis agrees
+            $finalConfidence = $aiResult['confidence'];
+            if ($aiResult['matches_intent'] === $keywordResult->matchesIntent) {
+                $finalConfidence = min(1.0, $finalConfidence + 0.1);
+            }
+            if ($aiResult['likely_working'] === $keywordResult->likelyWorking) {
+                $finalConfidence = min(1.0, $finalConfidence + 0.1);
+            }
+            
+            $this->logDebug('AI classification completed', [
+                'search_term' => $searchTerm,
+                'title' => $listing->title,
+                'ai_intent' => $aiResult['matches_intent'],
+                'ai_working' => $aiResult['likely_working'],
+                'ai_confidence' => $aiResult['confidence'],
+                'keyword_intent' => $keywordResult->matchesIntent,
+                'keyword_working' => $keywordResult->likelyWorking,
+                'final_confidence' => $finalConfidence
+            ]);
+            
+            return new Classification(
+                matchesIntent: $aiResult['matches_intent'],
+                likelyWorking: $aiResult['likely_working'],
+                confidence: $finalConfidence,
+                reasoning: $aiResult['reasoning']
+            );
+            
+        } catch (\Throwable $e) {
+            $this->logWarning('AI classification failed, falling back to keywords', [
+                'search_term' => $searchTerm,
+                'title' => $listing->title,
+                'error' => $e->getMessage()
+            ]);
+            
+            return $this->classifyWithKeywords($searchTerm, $listing);
+        }
+    }
+    
+    /**
+     * Classify using keyword-based analysis
+     * 
+     * @param string $searchTerm
+     * @param ParsedListing $listing
+     * @return Classification
+     */
+    private function classifyWithKeywords(string $searchTerm, ParsedListing $listing): Classification
+    {
+        $intentMatch = $this->matchesIntent($searchTerm, $listing->title, $listing->description ?? '');
+        $workingCondition = $this->assessWorkingCondition($listing->description ?? '');
         $confidence = $this->calculateConfidence([
             'intent_match' => $intentMatch,
             'working_condition' => $workingCondition,
             'title_quality' => $this->assessTitleQuality($listing->title),
-            'description_quality' => $this->assessDescriptionQuality($listing->description),
+            'description_quality' => $this->assessDescriptionQuality($listing->description ?? ''),
         ]);
         
-        $this->logDebug('Listing classified', [
+        $this->logDebug('Keyword classification completed', [
             'search_term' => $searchTerm,
             'title' => $listing->title,
             'intent_match' => $intentMatch,
@@ -147,10 +236,8 @@ class IntentClassifierService extends BaseService
             return true;
         }
         
-        // Use AI for complex intent matching if enabled
-        if (config('features.ai_classification_enabled', true)) {
-            return $this->aiIntentMatch($searchTerm, $title, $description);
-        }
+        // Keyword-based matching only in this method
+        // AI integration is handled at the higher level
         
         return false;
     }
@@ -186,10 +273,8 @@ class IntentClassifierService extends BaseService
             }
         }
         
-        // Use AI for working condition assessment if enabled
-        if (config('features.ai_classification_enabled', true)) {
-            return $this->aiWorkingConditionAssessment($description);
-        }
+        // Keyword-based assessment only in this method
+        // AI integration is handled at the higher level
         
         // Default to uncertain if no clear indicators
         return null;
@@ -297,131 +382,8 @@ class IntentClassifierService extends BaseService
         return implode('; ', $reasons);
     }
     
-    /**
-     * Use AI for intent matching (placeholder for future implementation)
-     * 
-     * @param string $searchTerm
-     * @param string $title
-     * @param string $description
-     * @return bool
-     */
-    private function aiIntentMatch(string $searchTerm, string $title, string $description): bool
-    {
-        // Placeholder for AI integration
-        // This would call an AI service to determine intent match
-        
-        try {
-            $prompt = "Does this listing match the search intent?\n\n";
-            $prompt .= "Search term: {$searchTerm}\n";
-            $prompt .= "Title: {$title}\n";
-            $prompt .= "Description: {$description}\n\n";
-            $prompt .= "Respond with only 'yes' or 'no'.";
-            
-            // This is a placeholder - actual implementation would depend on AI provider
-            // return $this->callAiService($prompt) === 'yes';
-            
-            $this->logInfo('AI intent matching not implemented', [
-                'search_term' => $searchTerm,
-                'title' => $title
-            ]);
-            
-            return false;
-        } catch (\Exception $e) {
-            $this->logError('AI intent matching failed', [
-                'error' => $e->getMessage(),
-                'search_term' => $searchTerm
-            ], $e);
-            
-            return false;
-        }
-    }
-    
-    /**
-     * Use AI for working condition assessment (placeholder for future implementation)
-     * 
-     * @param string $description
-     * @return bool|null
-     */
-    private function aiWorkingConditionAssessment(string $description): ?bool
-    {
-        // Placeholder for AI integration
-        // This would call an AI service to assess working condition
-        
-        try {
-            $prompt = "Based on this Romanian listing description, is the item likely in working condition?\n\n";
-            $prompt .= "Description: {$description}\n\n";
-            $prompt .= "Respond with 'working', 'broken', or 'uncertain'.";
-            
-            // This is a placeholder - actual implementation would depend on AI provider
-            // $response = $this->callAiService($prompt);
-            // return match($response) {
-            //     'working' => true,
-            //     'broken' => false,
-            //     default => null
-            // };
-            
-            $this->logInfo('AI working condition assessment not implemented', [
-                'description_length' => mb_strlen($description)
-            ]);
-            
-            return null;
-        } catch (\Exception $e) {
-            $this->logError('AI working condition assessment failed', [
-                'error' => $e->getMessage()
-            ], $e);
-            
-            return null;
-        }
-    }
+
 }
 
-/**
- * Data structure for classification results
- */
-class Classification
-{
-    public function __construct(
-        public readonly bool $matchesIntent,
-        public readonly ?bool $likelyWorking,
-        public readonly float $confidence,
-        public readonly string $reasoning = ''
-    ) {}
-    
-    /**
-     * Check if classification is high confidence
-     * 
-     * @return bool
-     */
-    public function isHighConfidence(): bool
-    {
-        $threshold = config('ai.confidence_threshold', 0.7);
-        return $this->confidence >= $threshold;
-    }
-    
-    /**
-     * Get working condition as string
-     * 
-     * @return string
-     */
-    public function getWorkingConditionString(): string
-    {
-        return match($this->likelyWorking) {
-            true => 'working',
-            false => 'broken',
-            null => 'uncertain'
-        };
-    }
-}
 
-/**
- * Placeholder data structure for parsed listing (will be implemented in crawler task)
- */
-class ParsedListing
-{
-    public function __construct(
-        public readonly string $title,
-        public readonly string $description,
-        public readonly string $url = '',
-        public readonly ?float $price = null
-    ) {}
-}
+

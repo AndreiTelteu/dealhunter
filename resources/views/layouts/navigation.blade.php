@@ -24,6 +24,9 @@
                     <x-nav-link :href="route('deals.index')" :active="request()->routeIs('deals.*')">
                         {{ __('All Deals') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('ai-classification.index')" :active="request()->routeIs('ai-classification.*')">
+                        {{ __('AI Testing') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -84,6 +87,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('deals.index')" :active="request()->routeIs('deals.*')">
                 {{ __('All Deals') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('ai-classification.index')" :active="request()->routeIs('ai-classification.*')">
+                {{ __('AI Testing') }}
             </x-responsive-nav-link>
         </div>
 

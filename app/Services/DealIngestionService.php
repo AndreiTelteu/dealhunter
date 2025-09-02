@@ -6,6 +6,7 @@ use App\Models\Deal;
 use App\Models\DealSnapshot;
 use App\Models\HuntedDeal;
 use App\Services\Crawlers\ParsedListing;
+use App\Services\Classification;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -18,6 +19,8 @@ use Carbon\Carbon;
 class DealIngestionService extends BaseService
 {
     protected string $logChannel = 'crawler';
+    
+    private IntentClassifierService $classifier;
     
     /**
      * Fields that trigger snapshot creation when changed
@@ -33,6 +36,12 @@ class DealIngestionService extends BaseService
         'seller_url',
         'posted_at'
     ];
+    
+    public function __construct(IntentClassifierService $classifier)
+    {
+        parent::__construct();
+        $this->classifier = $classifier;
+    }
     
     /**
      * Process multiple listings for a hunted deal
@@ -141,7 +150,9 @@ class DealIngestionService extends BaseService
                 $hasChanges = $this->hasSignificantChanges($existingDeal, $listing);
                 
                 if ($hasChanges) {
-                    $this->updateDeal($existingDeal, $listing, $now);
+                    // Re-classify if there are significant changes
+                    $classification = $this->classifyListing($huntedDeal, $listing);
+                    $this->updateDeal($existingDeal, $listing, $now, $classification);
                     $this->createSnapshot($existingDeal, $listing, $now);
                     $snapshotCreated = true;
                     
@@ -149,7 +160,10 @@ class DealIngestionService extends BaseService
                         'deal_id' => $existingDeal->id,
                         'hunted_deal_id' => $huntedDeal->id,
                         'external_id' => $listing->externalId,
-                        'title' => $listing->title
+                        'title' => $listing->title,
+                        'matches_intent' => $classification->matchesIntent,
+                        'likely_working' => $classification->likelyWorking,
+                        'confidence' => $classification->confidence
                     ]);
                 } else {
                     // No significant changes, just update last_seen_at
@@ -184,6 +198,12 @@ class DealIngestionService extends BaseService
     {
         $dealData = $this->prepareDealData($huntedDeal, $listing, $timestamp);
         
+        // Apply AI classification
+        $classification = $this->classifyListing($huntedDeal, $listing);
+        $dealData['matches_intent'] = $classification->matchesIntent;
+        $dealData['likely_working'] = $classification->likelyWorking;
+        $dealData['confidence'] = $classification->confidence;
+        
         $deal = Deal::create($dealData);
         
         // Create initial snapshot
@@ -198,9 +218,10 @@ class DealIngestionService extends BaseService
      * @param Deal $deal
      * @param ParsedListing $listing
      * @param Carbon $timestamp
+     * @param Classification|null $classification
      * @return void
      */
-    private function updateDeal(Deal $deal, ParsedListing $listing, Carbon $timestamp): void
+    private function updateDeal(Deal $deal, ParsedListing $listing, Carbon $timestamp, ?Classification $classification = null): void
     {
         $updateData = [
             'title' => $listing->title,
@@ -214,6 +235,13 @@ class DealIngestionService extends BaseService
             'posted_at' => $listing->postedAt ? Carbon::parse($listing->postedAt) : null,
             'last_seen_at' => $timestamp,
         ];
+        
+        // Add classification data if provided
+        if ($classification) {
+            $updateData['matches_intent'] = $classification->matchesIntent;
+            $updateData['likely_working'] = $classification->likelyWorking;
+            $updateData['confidence'] = $classification->confidence;
+        }
         
         $deal->update($updateData);
     }
@@ -307,6 +335,34 @@ class DealIngestionService extends BaseService
         }
         
         return !empty($changes);
+    }
+    
+    /**
+     * Classify a listing using AI
+     * 
+     * @param HuntedDeal $huntedDeal
+     * @param ParsedListing $listing
+     * @return Classification
+     */
+    private function classifyListing(HuntedDeal $huntedDeal, ParsedListing $listing): Classification
+    {
+        try {
+            return $this->classifier->classifyListing($huntedDeal->search_term, $listing);
+        } catch (\Throwable $e) {
+            $this->logWarning('Classification failed, using defaults', [
+                'hunted_deal_id' => $huntedDeal->id,
+                'external_id' => $listing->externalId,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Return default classification on error
+            return new Classification(
+                matchesIntent: false,
+                likelyWorking: null,
+                confidence: 0.0,
+                reasoning: 'Classification failed: ' . $e->getMessage()
+            );
+        }
     }
     
     /**
