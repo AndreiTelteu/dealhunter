@@ -11,8 +11,6 @@
 
 -   [x] 2. Create database schema and models
 
-
-
     -   Create migration for users table with authentication fields
     -   Create migration for hunted_deals table with user relationship and search configuration
     -   Create migration for deals table with external_id uniqueness and comprehensive listing data
@@ -20,13 +18,12 @@
     -   Add proper database indexes for performance optimization
     -   _Requirements: 9.4, 6.1, 6.2, 2.1_
 
-
-
--   [ ] 3. Implement Eloquent models with relationships
+-   [x] 3. Implement Eloquent models with relationships
 
     -   Create User model with hunted deals relationship
     -   Create HuntedDeal model with user and deals relationships
     -   Create Deal model with hunted deal and snapshots relationships
+
     -   Create DealSnapshot model with deal relationship and JSON casting for image URLs
     -   Define proper fillable fields, casts, and validation rules
     -   _Requirements: 2.1, 6.1, 6.2, 6.4_
