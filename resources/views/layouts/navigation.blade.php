@@ -5,8 +5,11 @@
             <div class="flex">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
+                    <a href="{{ route('dashboard') }}" class="flex items-center space-x-2">
+                        <div class="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold text-lg">
+                            OLX
+                        </div>
+                        <span class="font-semibold text-gray-800 hidden sm:block">Deal Hunter</span>
                     </a>
                 </div>
 
@@ -14,6 +17,12 @@
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('hunted-deals.index')" :active="request()->routeIs('hunted-deals.*')">
+                        {{ __('Hunted Deals') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('deals.index')" :active="request()->routeIs('deals.*')">
+                        {{ __('All Deals') }}
                     </x-nav-link>
                 </div>
             </div>
@@ -69,6 +78,12 @@
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('hunted-deals.index')" :active="request()->routeIs('hunted-deals.*')">
+                {{ __('Hunted Deals') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('deals.index')" :active="request()->routeIs('deals.*')">
+                {{ __('All Deals') }}
             </x-responsive-nav-link>
         </div>
 

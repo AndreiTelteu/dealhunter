@@ -1,20 +1,88 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
     return view('welcome');
 });
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    $user = Auth::user();
+    
+    // Get hunted deals statistics
+    $huntedDealsCount = $user->huntedDeals()->count();
+    $activeHuntedDealsCount = $user->huntedDeals()->where('is_active', true)->count();
+    
+    // Get deals statistics
+    $totalDealsCount = \App\Models\Deal::whereHas('huntedDeal', function ($query) use ($user) {
+        $query->where('user_id', $user->id);
+    })->count();
+    
+    $newDealsCount = \App\Models\Deal::whereHas('huntedDeal', function ($query) use ($user) {
+        $query->where('user_id', $user->id);
+    })->where('created_at', '>=', now()->subDay())->count();
+    
+    // Get recent hunted deals with deal counts
+    $huntedDeals = $user->huntedDeals()
+        ->withCount('deals')
+        ->orderBy('updated_at', 'desc')
+        ->limit(5)
+        ->get();
+    
+    // Get recent deals
+    $recentDeals = \App\Models\Deal::with('huntedDeal')
+        ->whereHas('huntedDeal', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })
+        ->orderBy('created_at', 'desc')
+        ->limit(10)
+        ->get();
+    
+    return view('dashboard', compact(
+        'huntedDealsCount',
+        'activeHuntedDealsCount', 
+        'totalDealsCount',
+        'newDealsCount',
+        'huntedDeals',
+        'recentDeals'
+    ));
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    
+    // Hunted Deals routes (placeholder - will be implemented in task 9)
+    Route::get('/hunted-deals', function () {
+        return redirect()->route('dashboard')->with('info', 'Hunted Deals management will be available soon.');
+    })->name('hunted-deals.index');
+    
+    Route::get('/hunted-deals/create', function () {
+        return redirect()->route('dashboard')->with('info', 'Hunted Deals creation will be available soon.');
+    })->name('hunted-deals.create');
+    
+    Route::get('/hunted-deals/{id}', function () {
+        return redirect()->route('dashboard')->with('info', 'Hunted Deals details will be available soon.');
+    })->name('hunted-deals.show');
+    
+    Route::get('/hunted-deals/{id}/edit', function () {
+        return redirect()->route('dashboard')->with('info', 'Hunted Deals editing will be available soon.');
+    })->name('hunted-deals.edit');
+    
+    // Deals routes (placeholder - will be implemented in task 10)
+    Route::get('/deals', function () {
+        return redirect()->route('dashboard')->with('info', 'Deals listing will be available soon.');
+    })->name('deals.index');
+    
+    Route::get('/deals/{id}', function () {
+        return redirect()->route('dashboard')->with('info', 'Deal details will be available soon.');
+    })->name('deals.show');
 });
 
 require __DIR__.'/auth.php';
