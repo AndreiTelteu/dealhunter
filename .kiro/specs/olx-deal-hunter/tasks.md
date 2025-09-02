@@ -30,15 +30,13 @@
 
 -   [x] 4. Build core service classes for business logic
 
-
     -   Create OlxSelectors class with centralized CSS selectors and MCP documentation references
     -   Create PriceParserService for currency detection, numeric extraction, and RON conversion
     -   Create IntentClassifierService with Romanian keyword detection and AI integration
     -   Create base service structure with error handling and logging
     -   _Requirements: 8.3, 3.4, 4.1, 4.2, 4.5_
 
--   [ ] 5. Implement Playwright MCP integration service
-
+-   [x] 5. Implement Playwright MCP integration service
 
     -   Create OlxCrawlerService with MCP connection and browser automation
     -   Implement search navigation, results extraction, and pagination handling
