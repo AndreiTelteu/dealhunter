@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RunDealCrawl;
 use App\Models\CrawlLog;
 use App\Models\HuntedDeal;
 use App\Models\SystemHealth;
@@ -10,7 +11,6 @@ use App\Services\SystemHealthService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -168,34 +168,21 @@ class AdminController extends Controller
         ]);
 
         try {
-            $command = 'deals:crawl';
-            $options = [];
+            RunDealCrawl::dispatch(
+                huntedDealId: $request->integer('hunted_deal_id') ?: null,
+                dryRun: $request->boolean('dry_run'),
+                triggeredByUserId: $request->user()?->id,
+            );
 
-            if ($request->boolean('dry_run')) {
-                $options['--dry-run'] = true;
-            }
-
-            if ($request->filled('hunted_deal_id')) {
-                $options['--hunted-deal'] = $request->hunted_deal_id;
-            }
-
-            // The command owns its crawl-log lifecycle, including failure handling.
-            $exitCode = Artisan::call($command, $options);
-
-            if ($exitCode === 0) {
-                return redirect()->back()->with('success', 'Manual crawl triggered successfully. Check crawl logs for results.');
-            } else {
-                return redirect()->back()->with('error', 'Manual crawl failed. Check logs for details.');
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Manual crawl trigger failed', [
+            return redirect()->back()->with('success', 'Manual crawl queued. Check crawl logs for results.');
+        } catch (\Throwable $e) {
+            Log::error('Manual crawl queueing failed', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id(),
-                'request_data' => $request->all(),
+                'request_data' => $request->except(['_token']),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to trigger manual crawl: '.$e->getMessage());
+            return redirect()->back()->with('error', 'Failed to queue manual crawl: '.$e->getMessage());
         }
     }
 
