@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Deal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -96,7 +97,7 @@ class DealController extends Controller
         $deal->load([
             'huntedDeal',
             'latestSnapshot',
-            'snapshots' => fn (Builder $query) => $query->orderBy('captured_at'),
+            'snapshots' => fn (HasMany $query) => $query->orderBy('captured_at'),
         ]);
 
         return view('deals.show', compact('deal'));
