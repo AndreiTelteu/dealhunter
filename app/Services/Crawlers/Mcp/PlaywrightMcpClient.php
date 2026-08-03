@@ -59,7 +59,28 @@ class PlaywrightMcpClient
             return $result;
         }
 
-        return json_decode($text, true) ?? $text;
+        return $this->decodeEvaluateText($text);
+    }
+
+    private function decodeEvaluateText(string $text): mixed
+    {
+        $trimmed = trim($text);
+        $decoded = json_decode($trimmed, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+
+        // Microsoft Playwright MCP wraps browser_evaluate values in a human-readable
+        // "### Result" section followed by an execution transcript.
+        if (preg_match('/^### Result\s+(.+?)(?:\s+### Ran Playwright code\b|\z)/s', $trimmed, $matches) === 1) {
+            $resultText = trim($matches[1]);
+            $decoded = json_decode($resultText, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        return $text;
     }
 
     /** @return array<string, mixed> */

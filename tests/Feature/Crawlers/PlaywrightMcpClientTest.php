@@ -18,7 +18,7 @@ class PlaywrightMcpClientTest extends TestCase
             'mcp.test/mcp' => Http::sequence()
                 ->push(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['protocolVersion' => '2025-06-18']], 200, ['Mcp-Session-Id' => 'session-1'])
                 ->push([], 202)
-                ->push(['jsonrpc' => '2.0', 'id' => 2, 'result' => ['content' => [['type' => 'text', 'text' => '[{"title":"Laptop"}]']]]]),
+                ->push(['jsonrpc' => '2.0', 'id' => 2, 'result' => ['content' => [['type' => 'text', 'text' => "### Result\n\n[{\"title\":\"Laptop\"}]\n\n### Ran Playwright code\n\n```js\nawait page.evaluate('...');\n```"]]]]),
         ]);
 
         $session = new McpSession;

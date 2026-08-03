@@ -77,12 +77,11 @@ class SecurityMonitoring
                     $this->logSecurityThreat($request, $type, $key, $value);
                 }
             }
-
-            // Check user agent
-            if ($userAgent && preg_match($pattern, $userAgent)) {
-                $this->logSecurityThreat($request, $type, 'user_agent', $userAgent);
-            }
         }
+
+        // User-Agent is intentionally not scanned with generic injection regexes:
+        // normal browser identifiers contain semicolons and parentheses. Bot-like
+        // User-Agents are handled separately below without false-positive alerts.
 
         // Check for bot-like behavior
         if ($this->isBotLikeBehavior($request)) {
@@ -118,9 +117,9 @@ class SecurityMonitoring
      */
     private function checkRateLimit(Request $request): void
     {
-        $key = 'security_monitor:' . $request->ip();
+        $key = 'security_monitor:'.$request->ip();
         $maxAttempts = 100; // requests per minute
-        
+
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
             Log::channel('security')->warning('Rate limit exceeded', [
                 'ip' => $request->ip(),
@@ -150,7 +149,7 @@ class SecurityMonitoring
         ];
 
         $path = $request->path();
-        
+
         foreach ($sensitivePatterns as $pattern) {
             if (str_starts_with($path, ltrim($pattern, '/'))) {
                 return true;
@@ -166,8 +165,8 @@ class SecurityMonitoring
     private function isBotLikeBehavior(Request $request): bool
     {
         $userAgent = $request->userAgent();
-        
-        if (!$userAgent) {
+
+        if (! $userAgent) {
             return true; // No user agent is suspicious
         }
 
