@@ -164,9 +164,6 @@ make restore BACKUP=production_backup_20240101_120000.sql
 ```bash
 # Full redeployment
 make production-deploy
-
-# Update without rebuilding
-make production-update
 ```
 
 ### Log Management
@@ -201,11 +198,9 @@ make logs-clear-production
    # Add: 0 12 * * * /usr/bin/certbot renew --quiet
    ```
 
-### Using Self-Signed Certificates
+### TLS Termination
 
-```bash
-make ssl-generate
-```
+The production container serves HTTP on port 80 only. Terminate TLS with a reverse proxy or load balancer and configure `APP_URL` with the public HTTPS URL. This repository does not provide a self-signed certificate generator.
 
 ## Troubleshooting
 

@@ -8,32 +8,33 @@ Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('dashboard');
     }
+
     return view('welcome');
 });
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
-    
+
     // Get hunted deals statistics
     $huntedDealsCount = $user->huntedDeals()->count();
     $activeHuntedDealsCount = $user->huntedDeals()->where('is_active', true)->count();
-    
+
     // Get deals statistics
     $totalDealsCount = \App\Models\Deal::whereHas('huntedDeal', function ($query) use ($user) {
         $query->where('user_id', $user->id);
     })->count();
-    
+
     $newDealsCount = \App\Models\Deal::whereHas('huntedDeal', function ($query) use ($user) {
         $query->where('user_id', $user->id);
     })->where('created_at', '>=', now()->subDay())->count();
-    
+
     // Get recent hunted deals with deal counts
     $huntedDeals = $user->huntedDeals()
         ->withCount('deals')
         ->orderBy('updated_at', 'desc')
         ->limit(5)
         ->get();
-    
+
     // Get recent deals
     $recentDeals = \App\Models\Deal::with('huntedDeal')
         ->whereHas('huntedDeal', function ($query) use ($user) {
@@ -42,10 +43,10 @@ Route::get('/dashboard', function () {
         ->orderBy('created_at', 'desc')
         ->limit(10)
         ->get();
-    
+
     return view('dashboard', compact(
         'huntedDealsCount',
-        'activeHuntedDealsCount', 
+        'activeHuntedDealsCount',
         'totalDealsCount',
         'newDealsCount',
         'huntedDeals',
@@ -57,18 +58,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
+
     // Hunted Deals routes
     Route::resource('hunted-deals', App\Http\Controllers\HuntedDealController::class);
-    
+
     // Deals routes
     Route::resource('deals', App\Http\Controllers\DealController::class)->only(['index', 'show']);
-    
+
     // AI Classification routes
     Route::get('/ai-classification', [App\Http\Controllers\AiClassificationController::class, 'index'])->name('ai-classification.index');
     Route::post('/ai-classification/test', [App\Http\Controllers\AiClassificationController::class, 'test'])->name('ai-classification.test');
     Route::post('/ai-classification/test-connection', [App\Http\Controllers\AiClassificationController::class, 'testConnection'])->name('ai-classification.test-connection');
-    
+
     // Admin routes
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [App\Http\Controllers\AdminController::class, 'dashboard'])->name('dashboard');

@@ -1,9 +1,13 @@
 <x-app-layout>
+    @php
+        $currentSnapshot = $deal->latestSnapshot;
+        $currentDeal = $currentSnapshot ?? $deal;
+    @endphp
     <x-slot name="header">
         <div class="flex justify-between items-start">
             <div class="min-w-0 flex-1">
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight truncate">
-                    {{ $deal->title }}
+                    {{ $currentDeal->title }}
                 </h2>
                 <p class="mt-1 text-sm text-gray-600">
                     From hunted deal: <span class="font-medium">{{ $deal->huntedDeal->search_term }}</span>
@@ -37,10 +41,19 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Main Content -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- Current Information -->
+                    <!-- Latest Snapshot -->
                     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div class="p-6">
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Current Information</h3>
+                            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                <h3 class="text-lg font-medium text-gray-900">Latest Snapshot</h3>
+                                <span class="text-sm text-gray-500">
+                                    @if($currentSnapshot)
+                                        Captured {{ $currentSnapshot->captured_at->format('M j, Y g:i A') }}
+                                    @else
+                                        No snapshot captured yet
+                                    @endif
+                                </span>
+                            </div>
                             
                             <!-- Status Indicators -->
                             <div class="flex flex-wrap gap-2 mb-4">
@@ -50,53 +63,53 @@
                                     </span>
                                 @endif
                                 
-                                @if($deal->matches_intent)
+                                @if($currentDeal->matches_intent)
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                         Matches Intent
                                     </span>
                                 @endif
                                 
-                                @if($deal->likely_working)
+                                @if($currentDeal->likely_working)
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                         Likely Working
                                     </span>
                                 @endif
                                 
-                                @if($deal->confidence)
+                                @if($currentDeal->confidence)
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                        {{ round($deal->confidence * 100) }}% Confidence
+                                        {{ round($currentDeal->confidence * 100) }}% Confidence
                                     </span>
                                 @endif
                             </div>
 
                             <!-- Description -->
-                            @if($deal->description)
+                            @if($currentDeal->description)
                                 <div class="mb-4">
                                     <h4 class="text-sm font-medium text-gray-700 mb-2">Description</h4>
-                                    <p class="text-gray-600 whitespace-pre-line">{{ $deal->description }}</p>
+                                    <p class="text-gray-600 whitespace-pre-line">{{ $currentDeal->description }}</p>
                                 </div>
                             @endif
 
                             <!-- Meta Information -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                @if($deal->location)
+                                @if($currentDeal->location)
                                     <div>
                                         <span class="font-medium text-gray-700">Location:</span>
-                                        <span class="text-gray-600">{{ $deal->location }}</span>
+                                        <span class="text-gray-600">{{ $currentDeal->location }}</span>
                                     </div>
                                 @endif
                                 
-                                @if($deal->seller_name)
+                                @if($currentDeal->seller_name)
                                     <div>
                                         <span class="font-medium text-gray-700">Seller:</span>
-                                        <span class="text-gray-600">{{ $deal->seller_name }}</span>
+                                        <span class="text-gray-600">{{ $currentDeal->seller_name }}</span>
                                     </div>
                                 @endif
                                 
-                                @if($deal->posted_at)
+                                @if($currentDeal->posted_at)
                                     <div>
                                         <span class="font-medium text-gray-700">Posted:</span>
-                                        <span class="text-gray-600">{{ $deal->posted_at->format('M j, Y g:i A') }}</span>
+                                        <span class="text-gray-600">{{ $currentDeal->posted_at->format('M j, Y g:i A') }}</span>
                                     </div>
                                 @endif
                                 
@@ -147,22 +160,22 @@
                                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                                     <div class="text-center">
                                         <div class="text-sm font-medium text-gray-500">Current</div>
-                                        <div class="text-lg font-bold text-gray-900">{{ number_format($currentPrice, 0) }} {{ $deal->price_currency }}</div>
+                                        <div class="text-lg font-bold text-gray-900">{{ number_format($currentPrice, 0) }} {{ $priceSnapshots->last()->price_currency }}</div>
                                     </div>
                                     <div class="text-center">
                                         <div class="text-sm font-medium text-gray-500">Change</div>
                                         <div class="text-lg font-bold {{ $priceChange >= 0 ? 'text-red-600' : 'text-green-600' }}">
-                                            {{ $priceChange >= 0 ? '+' : '' }}{{ number_format($priceChange, 0) }} {{ $deal->price_currency }}
+                                            {{ $priceChange >= 0 ? '+' : '' }}{{ number_format($priceChange, 0) }} {{ $priceSnapshots->last()->price_currency }}
                                             <div class="text-xs">({{ $priceChange >= 0 ? '+' : '' }}{{ number_format($priceChangePercent, 1) }}%)</div>
                                         </div>
                                     </div>
                                     <div class="text-center">
                                         <div class="text-sm font-medium text-gray-500">Lowest</div>
-                                        <div class="text-lg font-bold text-green-600">{{ number_format($lowestPrice, 0) }} {{ $deal->price_currency }}</div>
+                                        <div class="text-lg font-bold text-green-600">{{ number_format($lowestPrice, 0) }} {{ $priceSnapshots->last()->price_currency }}</div>
                                     </div>
                                     <div class="text-center">
                                         <div class="text-sm font-medium text-gray-500">Highest</div>
-                                        <div class="text-lg font-bold text-red-600">{{ number_format($highestPrice, 0) }} {{ $deal->price_currency }}</div>
+                                        <div class="text-lg font-bold text-red-600">{{ number_format($highestPrice, 0) }} {{ $priceSnapshots->last()->price_currency }}</div>
                                     </div>
                                 </div>
                                 
@@ -289,69 +302,81 @@
                                 </h3>
                                 
                                 <div class="flow-root">
-                                    <ul class="-mb-8">
+                                    <ul class="space-y-6">
                                         @foreach($deal->snapshots as $index => $snapshot)
                                             @php
-                                                $previousSnapshot = $index < $deal->snapshots->count() - 1 ? $deal->snapshots[$index + 1] : null;
+                                                $previousSnapshot = $index > 0 ? $deal->snapshots[$index - 1] : null;
+                                                $changes = [];
+
+                                                if (! $previousSnapshot) {
+                                                    $changes[] = ['Initial snapshot', $snapshot->title];
+                                                } else {
+                                                    $fields = [
+                                                        'title' => 'Title',
+                                                        'price_amount' => 'Price',
+                                                        'description' => 'Description',
+                                                        'location' => 'Location',
+                                                        'seller_name' => 'Seller',
+                                                        'posted_at' => 'Posted date',
+                                                        'matches_intent' => 'Matches intent',
+                                                        'likely_working' => 'Likely working',
+                                                        'confidence' => 'Confidence',
+                                                    ];
+
+                                                    foreach ($fields as $field => $label) {
+                                                        if ($snapshot->getAttribute($field) != $previousSnapshot->getAttribute($field)) {
+                                                            if ($field === 'price_amount') {
+                                                                $from = $previousSnapshot->price_amount ? number_format($previousSnapshot->price_amount, 0).' '.$previousSnapshot->price_currency : 'Not listed';
+                                                                $to = $snapshot->price_amount ? number_format($snapshot->price_amount, 0).' '.$snapshot->price_currency : 'Not listed';
+                                                            } elseif (in_array($field, ['matches_intent', 'likely_working'], true)) {
+                                                                $from = is_null($previousSnapshot->getAttribute($field)) ? 'Not classified' : ($previousSnapshot->getAttribute($field) ? 'Yes' : 'No');
+                                                                $to = is_null($snapshot->getAttribute($field)) ? 'Not classified' : ($snapshot->getAttribute($field) ? 'Yes' : 'No');
+                                                            } elseif ($field === 'confidence') {
+                                                                $from = is_null($previousSnapshot->confidence) ? 'Not classified' : round($previousSnapshot->confidence * 100).'%';
+                                                                $to = is_null($snapshot->confidence) ? 'Not classified' : round($snapshot->confidence * 100).'%';
+                                                            } elseif ($field === 'posted_at') {
+                                                                $from = $previousSnapshot->posted_at?->format('M j, Y g:i A') ?? 'Not listed';
+                                                                $to = $snapshot->posted_at?->format('M j, Y g:i A') ?? 'Not listed';
+                                                            } else {
+                                                                $from = filled($previousSnapshot->getAttribute($field)) ? Str::limit($previousSnapshot->getAttribute($field), 180) : 'Not listed';
+                                                                $to = filled($snapshot->getAttribute($field)) ? Str::limit($snapshot->getAttribute($field), 180) : 'Not listed';
+                                                            }
+
+                                                            $changes[] = [$label, $from, $to];
+                                                        }
+                                                    }
+
+                                                    if ($snapshot->image_urls !== $previousSnapshot->image_urls) {
+                                                        $changes[] = ['Images', count($previousSnapshot->image_urls ?? []).' image(s)', count($snapshot->image_urls ?? []).' image(s)'];
+                                                    }
+                                                }
                                             @endphp
-                                            <li>
-                                                <div class="relative flex space-x-3">
-                                                        <div>
-                                                            <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
-                                                                <svg class="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                                                                </svg>
-                                                            </span>
-                                                        </div>
-                                                        
-                                                        <div class="min-w-0 flex-1 pt-1.5">
-                                                            <div class="text-sm text-gray-500">
-                                                                <span class="font-medium text-gray-900">
-                                                                    {{ $snapshot->captured_at->format('M j, Y g:i A') }}
-                                                                </span>
-                                                                @if($index === 0)
-                                                                    <span class="text-green-600">(Latest)</span>
-                                                                @endif
-                                                            </div>
-                                                            
-                                                            <div class="mt-2 text-sm text-gray-700">
-                                                                @if($snapshot->price_amount)
-                                                                    <div class="mb-1">
-                                                                        <span class="font-medium">Price:</span> 
-                                                                        {{ number_format($snapshot->price_amount, 0) }} {{ $snapshot->price_currency }}
-                                                                        
-                                                                        @if($index < $deal->snapshots->count() - 1)
-                                                                            @php
-                                                                                $previousSnapshot = $deal->snapshots[$index + 1];
-                                                                                if($previousSnapshot->price_amount && $snapshot->price_amount != $previousSnapshot->price_amount) {
-                                                                                    $priceDiff = $snapshot->price_amount - $previousSnapshot->price_amount;
-                                                                                    $isIncrease = $priceDiff > 0;
-                                                                                }
-                                                                            @endphp
-                                                                            
-                                                                            @if(isset($priceDiff))
-                                                                                <span class="ml-2 text-xs {{ $isIncrease ? 'text-red-600' : 'text-green-600' }}">
-                                                                                    {{ $isIncrease ? '+' : '' }}{{ number_format($priceDiff, 0) }} {{ $snapshot->price_currency }}
-                                                                                </span>
-                                                                            @endif
-                                                                        @endif
-                                                                    </div>
-                                                                @endif
-                                                                
-                                                                @if($snapshot->title !== $deal->title)
-                                                                    <div class="mb-1">
-                                                                        <span class="font-medium">Title:</span> {{ $snapshot->title }}
-                                                                    </div>
-                                                                @endif
-                                                                
-                                                                @if($snapshot->description && $snapshot->description !== $deal->description)
-                                                                    <div class="mb-1">
-                                                                        <span class="font-medium">Description changed</span>
-                                                                    </div>
-                                                                @endif
-                                                            </div>
-                                                        </div>
+                                            <li class="relative flex gap-3">
+                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white ring-8 ring-white">{{ $index + 1 }}</span>
+                                                <div class="min-w-0 flex-1 rounded-lg border border-gray-200 p-4">
+                                                    <div class="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                                                        <span class="font-medium text-gray-900">{{ $snapshot->captured_at->format('M j, Y g:i A') }}</span>
+                                                        @if($snapshot->is($currentSnapshot))
+                                                            <span class="text-green-600">Latest</span>
+                                                        @endif
                                                     </div>
+                                                    <div class="mt-3 space-y-2 text-sm text-gray-700">
+                                                        @forelse($changes as $change)
+                                                            <div>
+                                                                <span class="font-medium">{{ $change[0] }}:</span>
+                                                                @if(count($change) === 2)
+                                                                    {{ $change[1] }}
+                                                                @else
+                                                                    <span class="text-gray-500">{{ $change[1] }}</span>
+                                                                    <span aria-hidden="true">-></span>
+                                                                    <span>{{ $change[2] }}</span>
+                                                                @endif
+                                                            </div>
+                                                        @empty
+                                                            <span class="text-gray-500">No tracked fields changed.</span>
+                                                        @endforelse
+                                                    </div>
+                                                </div>
                                             </li>
                                         @endforeach
                                     </ul>
@@ -363,17 +388,17 @@
 
                 <!-- Sidebar -->
                 <div class="space-y-6">
-                    <!-- Current Price -->
+                    <!-- Latest Snapshot Price -->
                     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div class="p-6">
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Current Price</h3>
-                            @if($deal->price_amount)
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Latest Snapshot Price</h3>
+                            @if($currentDeal->price_amount)
                                 <div class="text-3xl font-bold text-gray-900">
-                                    {{ number_format($deal->price_amount, 0) }} {{ $deal->price_currency }}
+                                    {{ number_format($currentDeal->price_amount, 0) }} {{ $currentDeal->price_currency }}
                                 </div>
-                                @if($deal->price_raw && $deal->price_raw !== $deal->price_amount . ' ' . $deal->price_currency)
+                                @if($currentDeal->price_raw && $currentDeal->price_raw !== $currentDeal->price_amount . ' ' . $currentDeal->price_currency)
                                     <div class="text-sm text-gray-500 mt-1">
-                                        Raw: {{ $deal->price_raw }}
+                                        Raw: {{ $currentDeal->price_raw }}
                                     </div>
                                 @endif
                             @else
@@ -410,34 +435,34 @@
                     @endif
 
                     <!-- AI Classification -->
-                    @if($deal->matches_intent !== null || $deal->likely_working !== null)
+                    @if($currentDeal->matches_intent !== null || $currentDeal->likely_working !== null)
                         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                             <div class="p-6">
                                 <h3 class="text-lg font-medium text-gray-900 mb-4">AI Classification</h3>
                                 
                                 <div class="space-y-3">
-                                    @if($deal->matches_intent !== null)
+                                    @if($currentDeal->matches_intent !== null)
                                         <div class="flex items-center justify-between">
                                             <span class="text-sm font-medium text-gray-700">Matches Intent</span>
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $deal->matches_intent ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
-                                                {{ $deal->matches_intent ? 'Yes' : 'No' }}
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $currentDeal->matches_intent ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                                {{ $currentDeal->matches_intent ? 'Yes' : 'No' }}
                                             </span>
                                         </div>
                                     @endif
                                     
-                                    @if($deal->likely_working !== null)
+                                    @if($currentDeal->likely_working !== null)
                                         <div class="flex items-center justify-between">
                                             <span class="text-sm font-medium text-gray-700">Likely Working</span>
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $deal->likely_working ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
-                                                {{ $deal->likely_working ? 'Yes' : 'No' }}
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $currentDeal->likely_working ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                                {{ $currentDeal->likely_working ? 'Yes' : 'No' }}
                                             </span>
                                         </div>
                                     @endif
                                     
-                                    @if($deal->confidence)
+                                    @if($currentDeal->confidence)
                                         <div class="flex items-center justify-between">
                                             <span class="text-sm font-medium text-gray-700">Confidence</span>
-                                            <span class="text-sm text-gray-600">{{ round($deal->confidence * 100) }}%</span>
+                                            <span class="text-sm text-gray-600">{{ round($currentDeal->confidence * 100) }}%</span>
                                         </div>
                                     @endif
                                 </div>

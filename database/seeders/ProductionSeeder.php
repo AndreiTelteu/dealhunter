@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\HuntedDeal;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -16,13 +16,14 @@ class ProductionSeeder extends Seeder
     {
         // Only create demo user if it doesn't exist
         $demoUser = User::where('email', 'demo@olx-deal-hunter.com')->first();
-        
-        if (!$demoUser) {
+
+        if (! $demoUser) {
             $demoUser = User::create([
                 'name' => 'Demo User',
                 'email' => 'demo@olx-deal-hunter.com',
                 'password' => Hash::make(env('DEMO_PASSWORD', 'demo123')),
                 'email_verified_at' => now(),
+                'is_admin' => true,
             ]);
 
             // Create one sample hunted deal

@@ -1,9 +1,14 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ __('Hunted Deals') }}
-            </h2>
+            <div>
+                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                    {{ __('Hunted Deals') }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-600">
+                    {{ $huntedDeals->total() }} {{ Str::plural('hunted deal', $huntedDeals->total()) }}
+                </p>
+            </div>
             <a href="{{ route('hunted-deals.create') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                 {{ __('Add Hunted Deal') }}
             </a>
@@ -102,11 +107,9 @@
                                                         </span>
                                                     @endif
                                                     
-                                                    @if($huntedDeal->deals_count > 0)
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                            {{ $huntedDeal->deals_count }} {{ Str::plural('deal', $huntedDeal->deals_count) }}
-                                                        </span>
-                                                    @endif
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {{ $huntedDeal->deals_count }} {{ Str::plural('deal', $huntedDeal->deals_count) }}
+                                                    </span>
                                                 </div>
                                             </div>
                                             

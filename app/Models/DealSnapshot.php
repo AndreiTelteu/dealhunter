@@ -21,6 +21,7 @@ class DealSnapshot extends Model
      */
     protected $fillable = [
         'deal_id',
+        'url',
         'title',
         'price_amount',
         'price_currency',

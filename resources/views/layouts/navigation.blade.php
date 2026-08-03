@@ -27,9 +27,11 @@
                     <x-nav-link :href="route('ai-classification.index')" :active="request()->routeIs('ai-classification.*')">
                         {{ __('AI Testing') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
-                        {{ __('Admin') }}
-                    </x-nav-link>
+                    @if((bool) Auth::user()?->getAttribute('is_admin'))
+                        <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
+                            {{ __('Admin') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -94,9 +96,11 @@
             <x-responsive-nav-link :href="route('ai-classification.index')" :active="request()->routeIs('ai-classification.*')">
                 {{ __('AI Testing') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
-                {{ __('Admin') }}
-            </x-responsive-nav-link>
+            @if((bool) Auth::user()?->getAttribute('is_admin'))
+                <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
+                    {{ __('Admin') }}
+                </x-responsive-nav-link>
+            @endif
         </div>
 
         <!-- Responsive Settings Options -->

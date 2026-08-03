@@ -26,6 +26,11 @@ return [
     'max_listings_per_run' => env('CRAWLER_MAX_LISTINGS_PER_RUN', 100),
     'requests_per_minute' => env('RATE_LIMIT_REQUESTS_PER_MINUTE', 30),
     'burst_limit' => env('RATE_LIMIT_BURST_LIMIT', 10),
+    'enabled' => env('CRAWLER_ENABLED', false),
+    'allowed_windows' => env('CRAWLER_ALLOWED_WINDOWS', ''),
+    'timezone' => env('CRAWLER_TIMEZONE', 'Europe/Bucharest'),
+    'require_terms_acknowledgement' => env('CRAWLER_REQUIRE_TERMS_ACKNOWLEDGEMENT', true),
+    'terms_acknowledged' => env('CRAWLER_TERMS_ACKNOWLEDGED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,7 +67,7 @@ return [
     */
     'extract_images' => env('CRAWLER_EXTRACT_IMAGES', true),
     'extract_seller_info' => env('CRAWLER_EXTRACT_SELLER_INFO', true),
-    'extract_description' => env('CRAWLER_EXTRACT_DESCRIPTION', false), // Only from detail pages
+    'extract_description' => env('CRAWLER_EXTRACT_DESCRIPTION', true),
     'max_images_per_listing' => env('CRAWLER_MAX_IMAGES_PER_LISTING', 5),
 
     /*

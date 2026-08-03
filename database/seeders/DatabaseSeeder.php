@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\HuntedDeal;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Demo User',
                 'password' => Hash::make('demo123'),
                 'email_verified_at' => now(),
+                'is_admin' => true,
             ]
         );
 

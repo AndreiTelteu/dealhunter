@@ -3,20 +3,18 @@
 namespace App\Services;
 
 use App\Services\Crawlers\ParsedListing;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Service for classifying listing intent and working condition using AI and keyword analysis
- * 
+ *
  * Provides Romanian keyword detection for broken items and AI-powered intent matching
  */
 class IntentClassifierService extends BaseService
 {
     protected string $logChannel = 'classifier';
-    
+
     private AiService $aiService;
-    
+
     /**
      * Romanian keywords indicating broken or non-working items
      */
@@ -40,7 +38,7 @@ class IntentClassifierService extends BaseService
         'inundat', 'inundata',
         'ars', 'arsa', 'arsi', 'arse',
     ];
-    
+
     /**
      * Keywords indicating uncertainty about working condition
      */
@@ -54,7 +52,7 @@ class IntentClassifierService extends BaseService
         'vândut ca văzut', 'vandut ca vazut',
         'fără returnare', 'fara returnare',
     ];
-    
+
     /**
      * Positive working condition keywords
      */
@@ -69,19 +67,44 @@ class IntentClassifierService extends BaseService
         'fără probleme', 'fara probleme',
         'impecabil', 'impecabila',
     ];
-    
+
+    /**
+     * Equivalent terms used by the deterministic intent matcher.
+     *
+     * Keep groups small and product-focused so broad category matches do not
+     * override the AI classification for ambiguous listings.
+     *
+     * @var array<string, list<string>>
+     */
+    private const INTENT_SYNONYM_GROUPS = [
+        'telefon' => ['telefon', 'telefoane', 'smartphone', 'mobil', 'mobile', 'cellphone'],
+        'laptop' => ['laptop', 'notebook', 'ultrabook', 'portabil'],
+        'calculator' => ['calculator', 'pc', 'desktop', 'unitate', 'sistem'],
+        'casti' => ['casti', 'headphones', 'headset', 'earbuds', 'buds', 'audio'],
+        'televizor' => ['televizor', 'tv', 'smarttv', 'television'],
+        'frigider' => ['frigider', 'combina', 'refrigerator'],
+        'masina' => ['masina', 'auto', 'autoturism', 'vehicul', 'car'],
+        'bicicleta' => ['bicicleta', 'biciclete', 'bike', 'bicycle'],
+        'motocicleta' => ['motocicleta', 'motor', 'moto', 'scooter'],
+        'canapea' => ['canapea', 'sofa', 'coltar', 'divan'],
+        'apartament' => ['apartament', 'garsoniera', 'locuinta', 'studio'],
+        'inchiriere' => ['inchiriere', 'chirie', 'rent', 'deinchiriat'],
+        'vanzare' => ['vanzare', 'devanzare', 'cumparare'],
+    ];
+
+    /** @var list<string> */
+    private const INTENT_STOP_WORDS = [
+        'si', 'sau', 'cu', 'de', 'la', 'in', 'pe', 'din', 'pentru', 'the', 'and', 'for', 'new', 'nou', 'noua',
+    ];
+
     public function __construct(AiService $aiService)
     {
         parent::__construct();
         $this->aiService = $aiService;
     }
-    
+
     /**
      * Classify a listing for intent matching and working condition
-     * 
-     * @param string $searchTerm
-     * @param ParsedListing $listing
-     * @return Classification
      */
     public function classifyListing(string $searchTerm, ParsedListing $listing): Classification
     {
@@ -97,27 +120,26 @@ class IntentClassifierService extends BaseService
             [
                 'search_term' => $searchTerm,
                 'title' => $listing->title,
-                'external_id' => $listing->externalId
+                'external_id' => $listing->externalId,
             ],
             'classify_listing'
         );
     }
-    
+
     /**
      * Classify using AI service
-     * 
-     * @param string $searchTerm
-     * @param ParsedListing $listing
-     * @return Classification
      */
     private function classifyWithAI(string $searchTerm, ParsedListing $listing): Classification
     {
         try {
             $aiResult = $this->aiService->comprehensiveClassification($searchTerm, $listing);
-            
+
             // Combine AI results with keyword analysis for better accuracy
             $keywordResult = $this->classifyWithKeywords($searchTerm, $listing);
-            
+
+            $matchesIntent = $keywordResult->matchesIntent || $aiResult['matches_intent'];
+            $likelyWorking = $aiResult['likely_working'] ?? $keywordResult->likelyWorking;
+
             // Use AI results but boost confidence if keyword analysis agrees
             $finalConfidence = $aiResult['confidence'];
             if ($aiResult['matches_intent'] === $keywordResult->matchesIntent) {
@@ -126,42 +148,40 @@ class IntentClassifierService extends BaseService
             if ($aiResult['likely_working'] === $keywordResult->likelyWorking) {
                 $finalConfidence = min(1.0, $finalConfidence + 0.1);
             }
-            
+
             $this->logDebug('AI classification completed', [
                 'search_term' => $searchTerm,
                 'title' => $listing->title,
                 'ai_intent' => $aiResult['matches_intent'],
+                'final_intent' => $matchesIntent,
                 'ai_working' => $aiResult['likely_working'],
+                'final_working' => $likelyWorking,
                 'ai_confidence' => $aiResult['confidence'],
                 'keyword_intent' => $keywordResult->matchesIntent,
                 'keyword_working' => $keywordResult->likelyWorking,
-                'final_confidence' => $finalConfidence
+                'final_confidence' => $finalConfidence,
             ]);
-            
+
             return new Classification(
-                matchesIntent: $aiResult['matches_intent'],
-                likelyWorking: $aiResult['likely_working'],
+                matchesIntent: $matchesIntent,
+                likelyWorking: $likelyWorking,
                 confidence: $finalConfidence,
                 reasoning: $aiResult['reasoning']
             );
-            
+
         } catch (\Throwable $e) {
             $this->logWarning('AI classification failed, falling back to keywords', [
                 'search_term' => $searchTerm,
                 'title' => $listing->title,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             return $this->classifyWithKeywords($searchTerm, $listing);
         }
     }
-    
+
     /**
      * Classify using keyword-based analysis
-     * 
-     * @param string $searchTerm
-     * @param ParsedListing $listing
-     * @return Classification
      */
     private function classifyWithKeywords(string $searchTerm, ParsedListing $listing): Classification
     {
@@ -173,7 +193,7 @@ class IntentClassifierService extends BaseService
             'title_quality' => $this->assessTitleQuality($listing->title),
             'description_quality' => $this->assessDescriptionQuality($listing->description ?? ''),
         ]);
-        
+
         $this->logDebug('Keyword classification completed', [
             'search_term' => $searchTerm,
             'title' => $listing->title,
@@ -181,7 +201,7 @@ class IntentClassifierService extends BaseService
             'working_condition' => $workingCondition,
             'confidence' => $confidence,
         ]);
-        
+
         return new Classification(
             matchesIntent: $intentMatch,
             likelyWorking: $workingCondition,
@@ -189,201 +209,228 @@ class IntentClassifierService extends BaseService
             reasoning: $this->generateReasoning($intentMatch, $workingCondition, $searchTerm, $listing)
         );
     }
-    
+
     /**
      * Check if listing matches search intent
-     * 
-     * @param string $searchTerm
-     * @param string $title
-     * @param string $description
-     * @return bool
      */
     private function matchesIntent(string $searchTerm, string $title, string $description): bool
     {
-        $searchTermLower = mb_strtolower($searchTerm, 'UTF-8');
-        $titleLower = mb_strtolower($title, 'UTF-8');
-        $descriptionLower = mb_strtolower($description, 'UTF-8');
-        
-        // Direct match in title (highest priority)
-        if (str_contains($titleLower, $searchTermLower)) {
+        $normalizedSearchTerm = $this->normalizeIntentText($searchTerm);
+        $normalizedTitle = $this->normalizeIntentText($title);
+        $normalizedDescription = $this->normalizeIntentText($description);
+
+        if ($normalizedSearchTerm === '') {
+            return false;
+        }
+
+        if (str_contains($normalizedTitle, $normalizedSearchTerm)) {
             return true;
         }
-        
-        // Check individual words from search term
-        $searchWords = explode(' ', $searchTermLower);
-        $titleWords = explode(' ', $titleLower);
-        
-        $matchedWords = 0;
-        foreach ($searchWords as $searchWord) {
-            if (strlen($searchWord) < 3) continue; // Skip short words
-            
-            foreach ($titleWords as $titleWord) {
-                if (str_contains($titleWord, $searchWord) || str_contains($searchWord, $titleWord)) {
-                    $matchedWords++;
-                    break;
-                }
+
+        $intentTerms = $this->intentTerms($normalizedSearchTerm);
+        if ($intentTerms === []) {
+            return false;
+        }
+
+        if ($this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedTitle)) >= 0.6) {
+            return true;
+        }
+
+        if (str_contains($normalizedDescription, $normalizedSearchTerm)) {
+            return true;
+        }
+
+        return $this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedDescription)) >= 0.8;
+    }
+
+    private function normalizeIntentText(string $value): string
+    {
+        $value = mb_strtolower($value, 'UTF-8');
+        $value = strtr($value, ['ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't']);
+
+        return trim((string) preg_replace('/[^a-z0-9]+/u', ' ', $value));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function intentTerms(string $value): array
+    {
+        $synonyms = $this->intentSynonyms();
+        $terms = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_unique(array_map(
+            fn (string $term): string => $synonyms[$term] ?? $term,
+            array_filter($terms, fn (string $term): bool => ! in_array($term, self::INTENT_STOP_WORDS, true) && (strlen($term) >= 3 || ctype_digit($term)))
+        )));
+    }
+
+    /**
+     * @param  list<string>  $expectedTerms
+     * @param  list<string>  $listingTerms
+     */
+    private function intentMatchRatio(array $expectedTerms, array $listingTerms): float
+    {
+        if ($expectedTerms === []) {
+            return 0.0;
+        }
+
+        return count(array_intersect($expectedTerms, $listingTerms)) / count($expectedTerms);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function intentSynonyms(): array
+    {
+        $synonyms = [];
+
+        foreach (self::INTENT_SYNONYM_GROUPS as $canonicalTerm => $variants) {
+            foreach ($variants as $variant) {
+                $synonyms[$variant] = $canonicalTerm;
             }
         }
-        
-        // Consider it a match if most significant words are found
-        $significantWords = count(array_filter($searchWords, fn($w) => strlen($w) >= 3));
-        if ($significantWords > 0 && $matchedWords / $significantWords >= 0.6) {
-            return true;
-        }
-        
-        // Check description for search term (lower priority)
-        if (str_contains($descriptionLower, $searchTermLower)) {
-            return true;
-        }
-        
-        // Keyword-based matching only in this method
-        // AI integration is handled at the higher level
-        
-        return false;
+
+        return $synonyms;
     }
-    
+
     /**
      * Assess working condition based on description analysis
-     * 
-     * @param string $description
+     *
      * @return bool|null True if likely working, false if likely broken, null if uncertain
      */
     private function assessWorkingCondition(string $description): ?bool
     {
         $descriptionLower = mb_strtolower($description, 'UTF-8');
-        
+
         // Check for broken keywords
         foreach (self::BROKEN_KEYWORDS as $keyword) {
             if (str_contains($descriptionLower, $keyword)) {
                 return false;
             }
         }
-        
+
         // Check for uncertain keywords
         foreach (self::UNCERTAIN_KEYWORDS as $keyword) {
             if (str_contains($descriptionLower, $keyword)) {
                 return null;
             }
         }
-        
+
         // Check for positive working keywords
         foreach (self::WORKING_KEYWORDS as $keyword) {
             if (str_contains($descriptionLower, $keyword)) {
                 return true;
             }
         }
-        
+
         // Keyword-based assessment only in this method
         // AI integration is handled at the higher level
-        
+
         // Default to uncertain if no clear indicators
         return null;
     }
-    
+
     /**
      * Calculate confidence score based on classification signals
-     * 
-     * @param array $signals
-     * @return float
      */
     private function calculateConfidence(array $signals): float
     {
         $confidence = 0.0;
         $factors = 0;
-        
+
         // Intent match confidence
         if ($signals['intent_match']) {
             $confidence += 0.4;
         }
         $factors++;
-        
+
         // Working condition confidence
         if ($signals['working_condition'] !== null) {
             $confidence += 0.3;
         }
         $factors++;
-        
+
         // Title quality (length and detail)
         $confidence += $signals['title_quality'] * 0.2;
         $factors++;
-        
+
         // Description quality
         $confidence += $signals['description_quality'] * 0.1;
         $factors++;
-        
+
         return min(1.0, max(0.0, $confidence));
     }
-    
+
     /**
      * Assess title quality
-     * 
-     * @param string $title
-     * @return float
      */
     private function assessTitleQuality(string $title): float
     {
         $length = mb_strlen($title, 'UTF-8');
-        
+
         // Optimal title length is 20-80 characters
-        if ($length < 10) return 0.2;
-        if ($length < 20) return 0.5;
-        if ($length <= 80) return 1.0;
-        if ($length <= 120) return 0.8;
-        
+        if ($length < 10) {
+            return 0.2;
+        }
+        if ($length < 20) {
+            return 0.5;
+        }
+        if ($length <= 80) {
+            return 1.0;
+        }
+        if ($length <= 120) {
+            return 0.8;
+        }
+
         return 0.6; // Very long titles might be spam
     }
-    
+
     /**
      * Assess description quality
-     * 
-     * @param string $description
-     * @return float
      */
     private function assessDescriptionQuality(string $description): float
     {
         $length = mb_strlen($description, 'UTF-8');
-        
+
         // Longer descriptions generally provide more information
-        if ($length < 50) return 0.3;
-        if ($length < 100) return 0.6;
-        if ($length <= 500) return 1.0;
-        if ($length <= 1000) return 0.9;
-        
+        if ($length < 50) {
+            return 0.3;
+        }
+        if ($length < 100) {
+            return 0.6;
+        }
+        if ($length <= 500) {
+            return 1.0;
+        }
+        if ($length <= 1000) {
+            return 0.9;
+        }
+
         return 0.7; // Very long descriptions might be copy-paste
     }
-    
+
     /**
      * Generate human-readable reasoning for classification
-     * 
-     * @param bool $intentMatch
-     * @param bool|null $workingCondition
-     * @param string $searchTerm
-     * @param ParsedListing $listing
-     * @return string
      */
     private function generateReasoning(bool $intentMatch, ?bool $workingCondition, string $searchTerm, ParsedListing $listing): string
     {
         $reasons = [];
-        
+
         if ($intentMatch) {
             $reasons[] = "Matches search term '{$searchTerm}'";
         } else {
             $reasons[] = "Does not clearly match search term '{$searchTerm}'";
         }
-        
+
         if ($workingCondition === true) {
-            $reasons[] = "Likely in working condition";
+            $reasons[] = 'Likely in working condition';
         } elseif ($workingCondition === false) {
-            $reasons[] = "Likely broken or for parts";
+            $reasons[] = 'Likely broken or for parts';
         } else {
-            $reasons[] = "Working condition uncertain";
+            $reasons[] = 'Working condition uncertain';
         }
-        
+
         return implode('; ', $reasons);
     }
-    
-
 }
-
-
-

@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deal;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-
 use Illuminate\View\View;
 
 class DealController extends Controller
@@ -16,21 +17,20 @@ class DealController extends Controller
      */
     public function index(Request $request): View
     {
+        /** @var User $user */
         $user = Auth::user();
-        
-        // Start with deals that belong to the authenticated user's hunted deals
-        $query = Deal::with(['huntedDeal', 'latestSnapshot'])
-            ->withCount('snapshots')
-            ->whereHas('huntedDeal', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
-            });
+        $huntedDealId = $this->validatedHuntedDealId($request, $user);
+
+        $query = $this->baseDealQuery($user, $huntedDealId)
+            ->with(['huntedDeal', 'latestSnapshot'])
+            ->withCount('snapshots');
 
         // Apply search filter
         if ($request->filled('search')) {
             $searchTerm = $request->get('search');
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('title', 'ILIKE', "%{$searchTerm}%")
-                  ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
+                    ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
             });
         }
 
@@ -38,13 +38,13 @@ class DealController extends Controller
         if ($request->boolean('price_drops')) {
             $query->whereExists(function ($q) {
                 $q->select(\DB::raw(1))
-                  ->from('deal_snapshots as ds1')
-                  ->join('deal_snapshots as ds2', 'ds1.deal_id', '=', 'ds2.deal_id')
-                  ->whereColumn('ds1.deal_id', 'deals.id')
-                  ->where('ds1.captured_at', '>', \DB::raw('ds2.captured_at'))
-                  ->where('ds1.price_amount', '<', \DB::raw('ds2.price_amount'))
-                  ->whereNotNull('ds1.price_amount')
-                  ->whereNotNull('ds2.price_amount');
+                    ->from('deal_snapshots as ds1')
+                    ->join('deal_snapshots as ds2', 'ds1.deal_id', '=', 'ds2.deal_id')
+                    ->whereColumn('ds1.deal_id', 'deals.id')
+                    ->where('ds1.captured_at', '>', \DB::raw('ds2.captured_at'))
+                    ->where('ds1.price_amount', '<', \DB::raw('ds2.price_amount'))
+                    ->whereNotNull('ds1.price_amount')
+                    ->whereNotNull('ds2.price_amount');
             });
         }
 
@@ -65,8 +65,8 @@ class DealController extends Controller
 
         // Apply sorting
         $sortBy = $request->get('sort', 'last_seen_at');
-        $sortDirection = $request->get('direction', 'desc');
-        
+        $sortDirection = $request->get('direction') === 'asc' ? 'asc' : 'desc';
+
         $allowedSorts = ['title', 'price_amount', 'location', 'last_seen_at', 'created_at'];
         if (in_array($sortBy, $allowedSorts)) {
             $query->orderBy($sortBy, $sortDirection);
@@ -78,7 +78,7 @@ class DealController extends Controller
         $deals = $query->paginate(20)->withQueryString();
 
         // Get filter counts for display
-        $filterCounts = $this->getFilterCounts($user);
+        $filterCounts = $this->getFilterCounts($user, $huntedDealId);
 
         return view('deals.index', compact('deals', 'filterCounts'));
     }
@@ -93,9 +93,11 @@ class DealController extends Controller
             abort(403);
         }
 
-        $deal->load(['huntedDeal', 'snapshots' => function ($query) {
-            $query->orderBy('captured_at', 'desc');
-        }]);
+        $deal->load([
+            'huntedDeal',
+            'latestSnapshot',
+            'snapshots' => fn (Builder $query) => $query->orderBy('captured_at'),
+        ]);
 
         return view('deals.show', compact('deal'));
     }
@@ -103,27 +105,48 @@ class DealController extends Controller
     /**
      * Get counts for various filters to display in the UI.
      */
-    private function getFilterCounts($user): array
+    private function getFilterCounts(User $user, ?int $huntedDealId): array
     {
-        $baseQuery = Deal::whereHas('huntedDeal', function ($q) use ($user) {
-            $q->where('user_id', $user->id);
-        });
-
         return [
-            'total' => $baseQuery->count(),
-            'new_items' => $baseQuery->where('created_at', '>=', now()->subDay())->count(),
-            'matches_intent' => $baseQuery->where('matches_intent', true)->count(),
-            'likely_working' => $baseQuery->where('likely_working', true)->count(),
-            'price_drops' => $baseQuery->whereExists(function ($q) {
+            'total' => $this->baseDealQuery($user, $huntedDealId)->count(),
+            'new_items' => $this->baseDealQuery($user, $huntedDealId)->where('created_at', '>=', now()->subDay())->count(),
+            'matches_intent' => $this->baseDealQuery($user, $huntedDealId)->where('matches_intent', true)->count(),
+            'likely_working' => $this->baseDealQuery($user, $huntedDealId)->where('likely_working', true)->count(),
+            'price_drops' => $this->baseDealQuery($user, $huntedDealId)->whereExists(function ($q) {
                 $q->select(DB::raw(1))
-                  ->from('deal_snapshots as ds1')
-                  ->join('deal_snapshots as ds2', 'ds1.deal_id', '=', 'ds2.deal_id')
-                  ->whereColumn('ds1.deal_id', 'deals.id')
-                  ->where('ds1.captured_at', '>', DB::raw('ds2.captured_at'))
-                  ->where('ds1.price_amount', '<', DB::raw('ds2.price_amount'))
-                  ->whereNotNull('ds1.price_amount')
-                  ->whereNotNull('ds2.price_amount');
+                    ->from('deal_snapshots as ds1')
+                    ->join('deal_snapshots as ds2', 'ds1.deal_id', '=', 'ds2.deal_id')
+                    ->whereColumn('ds1.deal_id', 'deals.id')
+                    ->where('ds1.captured_at', '>', DB::raw('ds2.captured_at'))
+                    ->where('ds1.price_amount', '<', DB::raw('ds2.price_amount'))
+                    ->whereNotNull('ds1.price_amount')
+                    ->whereNotNull('ds2.price_amount');
             })->count(),
         ];
+    }
+
+    private function baseDealQuery(User $user, ?int $huntedDealId = null): Builder
+    {
+        return Deal::query()
+            ->whereHas('huntedDeal', function (Builder $query) use ($user, $huntedDealId) {
+                $query->where('user_id', $user->id)
+                    ->when($huntedDealId, fn (Builder $query) => $query->whereKey($huntedDealId));
+            });
+    }
+
+    private function validatedHuntedDealId(Request $request, User $user): ?int
+    {
+        if (! $request->filled('hunted_deal')) {
+            return null;
+        }
+
+        $huntedDealId = $request->integer('hunted_deal');
+
+        abort_unless(
+            $huntedDealId > 0 && $user->huntedDeals()->whereKey($huntedDealId)->exists(),
+            404,
+        );
+
+        return $huntedDealId;
     }
 }
