@@ -9,8 +9,11 @@ return [
     | Configuration for the Playwright MCP service endpoint and authentication
     |
     */
-    'mcp_playwright_endpoint' => env('MCP_PLAYWRIGHT_ENDPOINT', 'http://localhost:3000'),
+    'mcp_playwright_endpoint' => env('MCP_PLAYWRIGHT_ENDPOINT', 'http://localhost:3000/mcp'),
     'mcp_playwright_token' => env('MCP_PLAYWRIGHT_TOKEN', ''),
+    'mcp_init_timeout_ms' => env('MCP_INIT_TIMEOUT_MS', 10000),
+    'mcp_session_auto_recover' => env('MCP_SESSION_AUTO_RECOVER', true),
+    'mcp_protocol_version' => env('MCP_PROTOCOL_VERSION', '2025-06-18'),
 
     /*
     |--------------------------------------------------------------------------

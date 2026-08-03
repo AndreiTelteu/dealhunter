@@ -4,32 +4,19 @@ namespace App\Services\Crawlers;
 
 use App\Models\HuntedDeal;
 use App\Services\BaseService;
+use App\Services\Crawlers\Mcp\PlaywrightMcpClient;
 use App\Services\PriceParserService;
-use Illuminate\Support\Facades\Http;
+use Carbon\Carbon;
 
-/**
- * OLX Romania crawler service using Playwright MCP integration
- *
- * This service handles browser automation for crawling OLX search results,
- * extracting listing data, and managing pagination with rate limiting
- */
 class OlxCrawlerService extends BaseService
 {
     protected string $logChannel = 'crawler';
-
-    private string $mcpEndpoint;
-
-    private string $mcpToken;
 
     private int $requestDelayMs;
 
     private int $maxPagesPerSearch;
 
     private int $maxListingsPerRun;
-
-    private string $userAgent;
-
-    private PriceParserService $priceParser;
 
     private int $requestsPerMinute;
 
@@ -39,150 +26,72 @@ class OlxCrawlerService extends BaseService
 
     private float $lastTokenRefillAt;
 
-    public function __construct(PriceParserService $priceParser)
-    {
+    public function __construct(
+        private readonly PriceParserService $priceParser,
+        private readonly PlaywrightMcpClient $mcp,
+    ) {
         parent::__construct();
 
-        $this->priceParser = $priceParser;
-        $this->mcpEndpoint = config('crawler.mcp_playwright_endpoint', 'http://localhost:3000');
-        $this->mcpToken = config('crawler.mcp_playwright_token', '');
         $this->requestDelayMs = max(0, (int) config('crawler.request_delay_ms', 2000));
         $this->maxPagesPerSearch = max(1, (int) config('crawler.max_pages_per_search', 3));
         $this->maxListingsPerRun = max(1, (int) config('crawler.max_listings_per_run', 100));
-        $this->userAgent = config('crawler.user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
         $this->requestsPerMinute = max(1, (int) config('crawler.requests_per_minute', 30));
         $this->burstLimit = max(1, (int) config('crawler.burst_limit', 10));
         $this->availableRequestTokens = $this->burstLimit;
         $this->lastTokenRefillAt = microtime(true);
     }
 
-    /**
-     * Crawl a hunted deal and extract listings
-     */
     public function crawlHuntedDeal(HuntedDeal $huntedDeal): CrawlResult
     {
         return $this->executeWithErrorHandling(
-            operation: fn () => $this->performCrawl($huntedDeal),
-            context: [
-                'hunted_deal_id' => $huntedDeal->id,
-                'search_term' => $huntedDeal->search_term,
-                'user_id' => $huntedDeal->user_id,
-            ],
-            operationName: 'crawl_hunted_deal'
+            operation: fn (): CrawlResult => $this->performCrawl($huntedDeal),
+            context: ['hunted_deal_id' => $huntedDeal->id, 'search_term' => $huntedDeal->search_term, 'user_id' => $huntedDeal->user_id],
+            operationName: 'crawl_hunted_deal',
         );
     }
 
-    /**
-     * Extract listings for a search term
-     */
+    /** @return array<int, array<string, mixed>> */
     public function extractListings(string $searchTerm, int $maxPages = 3): array
     {
         $this->validateRequired(['searchTerm' => $searchTerm], ['searchTerm']);
         $this->assertCrawlingPermitted();
-
         $maxPages = min(max(1, $maxPages), $this->maxPagesPerSearch);
         $listings = [];
-        $currentPage = 1;
-
-        $this->logInfo('Starting listing extraction', [
-            'search_term' => $searchTerm,
-            'max_pages' => $maxPages,
-        ]);
 
         try {
-            // Navigate to search page
+            $this->performMcpOperation(function (): null {
+                $this->mcp->ensureInitialized();
+
+                return null;
+            });
             $this->navigateToSearch($searchTerm);
 
-            while ($currentPage <= $maxPages && count($listings) < $this->maxListingsPerRun) {
-                $this->logDebug("Processing page {$currentPage}", [
-                    'search_term' => $searchTerm,
-                    'page' => $currentPage,
-                    'listings_so_far' => count($listings),
-                ]);
-
-                // Extract listings from current page
+            for ($page = 1; $page <= $maxPages && count($listings) < $this->maxListingsPerRun; $page++) {
                 $pageListings = $this->extractFromResultsPage();
-
-                if (empty($pageListings)) {
-                    $this->logWarning('No listings found on page', [
-                        'search_term' => $searchTerm,
-                        'page' => $currentPage,
-                    ]);
+                if ($pageListings === []) {
                     break;
                 }
 
                 $listings = array_merge($listings, array_slice($pageListings, 0, $this->maxListingsPerRun - count($listings)));
-
-                // Check if we've hit the listing limit
-                if (count($listings) >= $this->maxListingsPerRun) {
-                    $this->logInfo('Reached maximum listings limit', [
-                        'search_term' => $searchTerm,
-                        'listings_count' => count($listings),
-                        'limit' => $this->maxListingsPerRun,
-                    ]);
+                if (count($listings) >= $this->maxListingsPerRun || ! $this->handlePagination()) {
                     break;
                 }
-
-                // Try to navigate to next page
-                if (! $this->handlePagination()) {
-                    $this->logInfo('No more pages available', [
-                        'search_term' => $searchTerm,
-                        'final_page' => $currentPage,
-                    ]);
-                    break;
-                }
-
-                $currentPage++;
-
             }
 
-            $listings = $this->enrichListingsFromDetailPages($listings);
-
-            $this->logInfo('Listing extraction completed', [
-                'search_term' => $searchTerm,
-                'pages_processed' => $currentPage,
-                'total_listings' => count($listings),
-            ]);
-
-            return $listings;
-
-        } catch (\Exception $e) {
-            $this->logError('Listing extraction failed', [
-                'search_term' => $searchTerm,
-                'page' => $currentPage,
-                'error' => $e->getMessage(),
-            ], $e);
-
-            throw $e;
+            return $this->enrichListingsFromDetailPages($listings);
+        } finally {
+            $this->mcp->closeSession();
         }
     }
 
-    /**
-     * Parse raw listing data into ParsedListing object
-     */
     public function parseListingData(array $rawListing): ParsedListing
     {
-        // Extract external ID from URL
-        $externalId = ParsedListing::extractExternalIdFromUrl($rawListing['url'] ?? '');
-        if (! $externalId) {
-            $externalId = $rawListing['external_id'] ?? uniqid('olx_');
-        }
-
-        // Parse price information
-        $priceData = null;
-        if (! empty($rawListing['price_raw'])) {
-            $priceData = $this->priceParser->parsePrice($rawListing['price_raw']);
-        }
-
-        // Normalize URL
-        $url = ParsedListing::normalizeUrl($rawListing['url'] ?? '');
-
-        // Clean and process image URLs
-        $imageUrls = $this->processImageUrls($rawListing['image_urls'] ?? []);
+        $externalId = ParsedListing::extractExternalIdFromUrl($rawListing['url'] ?? '') ?: ($rawListing['external_id'] ?? uniqid('olx_'));
+        $priceData = ! empty($rawListing['price_raw']) ? $this->priceParser->parsePrice($rawListing['price_raw']) : null;
 
         return new ParsedListing(
             externalId: $externalId,
-            url: $url,
+            url: ParsedListing::normalizeUrl($rawListing['url'] ?? ''),
             title: trim($rawListing['title'] ?? ''),
             priceRaw: $rawListing['price_raw'] ?? null,
             priceAmount: $priceData?->ronAmount,
@@ -192,500 +101,175 @@ class OlxCrawlerService extends BaseService
             sellerName: trim($rawListing['seller_name'] ?? ''),
             sellerUrl: $rawListing['seller_url'] ?? null,
             postedAt: $rawListing['posted_at'] ?? null,
-            imageUrls: $imageUrls,
+            imageUrls: $this->processImageUrls($rawListing['image_urls'] ?? []),
             isPromoted: $rawListing['is_promoted'] ?? false,
             isUrgent: $rawListing['is_urgent'] ?? false,
             isNegotiable: $rawListing['is_negotiable'] ?? false,
-            metadata: $rawListing['metadata'] ?? []
+            metadata: $rawListing['metadata'] ?? [],
         );
     }
 
-    /**
-     * Perform the actual crawl operation
-     */
     private function performCrawl(HuntedDeal $huntedDeal): CrawlResult
     {
         $startTime = microtime(true);
-        $listings = [];
-        $errors = [];
-        $pagesProcessed = 0;
-
         try {
             $rawListings = $this->extractListings($huntedDeal->search_term, $this->maxPagesPerSearch);
-            $pagesProcessed = min($this->maxPagesPerSearch, ceil(count($rawListings) / 20)); // Estimate pages
+            $listings = array_values(array_filter(array_map(fn (array $listing): ParsedListing => $this->parseListingData($listing), $rawListings), fn (ParsedListing $listing): bool => $listing->isValid()));
 
-            foreach ($rawListings as $rawListing) {
-                try {
-                    $parsedListing = $this->parseListingData($rawListing);
-                    if ($parsedListing->isValid()) {
-                        $listings[] = $parsedListing;
-                    } else {
-                        $errors[] = 'Invalid listing data: '.json_encode($rawListing);
-                    }
-                } catch (\Exception $e) {
-                    $errors[] = 'Failed to parse listing: '.$e->getMessage();
-                    $this->logWarning('Failed to parse individual listing', [
-                        'hunted_deal_id' => $huntedDeal->id,
-                        'raw_listing' => $rawListing,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            $durationMs = (microtime(true) - $startTime) * 1000;
-
-            if (empty($errors)) {
-                return CrawlResult::success($listings, $pagesProcessed, $durationMs, [
-                    'search_term' => $huntedDeal->search_term,
-                    'hunted_deal_id' => $huntedDeal->id,
-                ]);
-            } else {
-                return CrawlResult::failure($errors, $listings, $pagesProcessed, $durationMs, [
-                    'search_term' => $huntedDeal->search_term,
-                    'hunted_deal_id' => $huntedDeal->id,
-                ]);
-            }
-
-        } catch (\Exception $e) {
-            $durationMs = (microtime(true) - $startTime) * 1000;
-            $errors[] = $e->getMessage();
-
-            return CrawlResult::failure($errors, $listings, $pagesProcessed, $durationMs, [
-                'search_term' => $huntedDeal->search_term,
-                'hunted_deal_id' => $huntedDeal->id,
-            ]);
+            return CrawlResult::success($listings, min($this->maxPagesPerSearch, (int) ceil(count($rawListings) / 20)), (microtime(true) - $startTime) * 1000, ['search_term' => $huntedDeal->search_term, 'hunted_deal_id' => $huntedDeal->id]);
+        } catch (\Throwable $exception) {
+            return CrawlResult::failure([$exception->getMessage()], [], 0, (microtime(true) - $startTime) * 1000, ['search_term' => $huntedDeal->search_term, 'hunted_deal_id' => $huntedDeal->id]);
         }
     }
 
-    /**
-     * Navigate to OLX search page with search term
-     */
     private function navigateToSearch(string $searchTerm): void
     {
-        $this->retryWithBackoff(
-            operation: function () use ($searchTerm) {
-                // Navigate to OLX homepage first
-                $this->mcpRequest('navigate', [
-                    'url' => 'https://www.olx.ro',
-                ]);
-
-                $searchInputSelector = $this->waitForAnySelector([OlxSelectors::SEARCH_INPUT, OlxSelectors::SEARCH_INPUT_FALLBACK], 10000);
-
-                // Clear and fill search input
-                $this->mcpRequest('fill', [
-                    'selector' => $searchInputSelector,
-                    'value' => $searchTerm,
-                ]);
-
-                $this->clickAnySelector([OlxSelectors::SEARCH_BUTTON, OlxSelectors::SEARCH_BUTTON_FALLBACK]);
-
-                $this->waitForAnySelector([OlxSelectors::LISTING_CONTAINER, OlxSelectors::LISTING_CONTAINER_FALLBACK], 15000);
-
-                $this->logDebug('Successfully navigated to search results', [
-                    'search_term' => $searchTerm,
-                ]);
-            },
-            maxAttempts: 3,
-            baseDelayMs: 2000,
-            context: ['search_term' => $searchTerm]
-        );
+        $this->retryWithBackoff(function () use ($searchTerm): void {
+            $this->performMcpOperation(fn (): array => $this->mcp->navigate('https://www.olx.ro/ro/oferta/q-'.rawurlencode($searchTerm).'/'));
+            $this->waitForSelectorViaEvaluate([OlxSelectors::LISTING_CONTAINER, OlxSelectors::LISTING_CONTAINER_FALLBACK]);
+        }, 3, 2000, ['search_term' => $searchTerm]);
     }
 
-    /**
-     * Extract listings from current results page
-     */
+    /** @return array<int, array<string, mixed>> */
     private function extractFromResultsPage(): array
     {
-        return $this->retryWithBackoff(
-            operation: function () {
-                $listingElements = [];
-                foreach (OlxSelectors::getListingItemSelectors() as $selector) {
-                    $listingElements = $this->mcpRequest('queryAll', [
-                        'selector' => $selector,
-                    ]);
+        return $this->retryWithBackoff(function (): array {
+            $listings = $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate($this->resultsExtractorFunction()));
 
-                    if (! empty($listingElements)) {
-                        break;
-                    }
-                }
-
-                if (empty($listingElements)) {
-                    $this->logWarning('No listing elements found on page');
-
-                    return [];
-                }
-
-                $listings = [];
-
-                foreach ($listingElements as $index => $element) {
-                    try {
-                        $listing = $this->extractListingFromElement($element, $index);
-                        if ($listing) {
-                            $listings[] = $listing;
-                        }
-                    } catch (\Exception $e) {
-                        $this->logWarning('Failed to extract listing from element', [
-                            'element_index' => $index,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
-
-                $this->logDebug('Extracted listings from page', [
-                    'listings_count' => count($listings),
-                    'elements_found' => count($listingElements),
-                ]);
-
-                return $listings;
-            },
-            maxAttempts: 2,
-            baseDelayMs: 1000
-        );
-    }
-
-    /**
-     * Extract listing data from a single element
-     */
-    private function extractListingFromElement(array $element, int $index): ?array
-    {
-        try {
-            // Extract title and URL
-            $titleData = $this->extractWithFallback($element, [
-                OlxSelectors::LISTING_TITLE,
-                OlxSelectors::LISTING_TITLE_FALLBACK,
-            ]);
-
-            $urlData = $this->extractWithFallback($element, [
-                OlxSelectors::LISTING_URL,
-                OlxSelectors::LISTING_URL_FALLBACK,
-            ], 'href');
-
-            if (! $titleData || ! $urlData) {
-                $this->logWarning('Missing required title or URL data', [
-                    'element_index' => $index,
-                    'title_found' => ! empty($titleData),
-                    'url_found' => ! empty($urlData),
-                ]);
-
-                return null;
+            if (! is_array($listings)) {
+                throw new CrawlerException('MCP returned an invalid listing extraction result.');
             }
 
-            // Extract price
-            $priceData = $this->extractWithFallback($element, [
-                OlxSelectors::LISTING_PRICE,
-                OlxSelectors::LISTING_PRICE_FALLBACK,
-            ]);
+            foreach ($listings as &$listing) {
+                $listing['posted_at'] = $this->normalizePostedAt($listing['location'] ?? null);
+            }
 
-            // Extract location
-            $locationData = $this->extractWithFallback($element, [
-                OlxSelectors::LISTING_LOCATION,
-                OlxSelectors::LISTING_LOCATION_FALLBACK,
-            ]);
-            $postedAt = $this->normalizePostedAt($locationData);
-
-            // Extract image URLs
-            $imageUrls = $this->extractImageUrls($element);
-
-            // Check for promotional flags
-            $isPromoted = $this->hasSelector($element, OlxSelectors::LISTING_PROMOTED);
-            $isUrgent = $this->hasSelector($element, OlxSelectors::LISTING_URGENT);
-            $isNegotiable = $this->hasSelector($element, OlxSelectors::LISTING_NEGOTIABLE);
-
-            return [
-                'url' => $urlData,
-                'title' => $titleData,
-                'price_raw' => $priceData,
-                'location' => $locationData,
-                'posted_at' => $postedAt,
-                'image_urls' => $imageUrls,
-                'is_promoted' => $isPromoted,
-                'is_urgent' => $isUrgent,
-                'is_negotiable' => $isNegotiable,
-                'metadata' => [
-                    'extraction_index' => $index,
-                    'extraction_timestamp' => now()->toISOString(),
-                ],
-            ];
-
-        } catch (\Exception $e) {
-            $this->logError('Failed to extract listing data from element', [
-                'element_index' => $index,
-                'error' => $e->getMessage(),
-            ], $e);
-
-            return null;
-        }
+            return array_values(array_filter($listings, fn (mixed $listing): bool => is_array($listing) && ! empty($listing['title']) && ! empty($listing['url'])));
+        }, 2, 1000);
     }
 
-    /**
-     * Handle pagination to next page
-     *
-     * @return bool True if successfully navigated to next page
-     */
     private function handlePagination(): bool
     {
-        try {
-            $nextSelector = null;
-            foreach ([OlxSelectors::PAGINATION_NEXT, OlxSelectors::PAGINATION_NEXT_FALLBACK] as $selector) {
-                $nextButton = $this->mcpRequest('query', [
-                    'selector' => $selector,
-                ]);
+        $selectors = json_encode([OlxSelectors::PAGINATION_NEXT, OlxSelectors::PAGINATION_NEXT_FALLBACK], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+        $before = $this->listingFingerprint();
+        $clicked = $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate("() => { const button = {$selectors}.map(selector => document.querySelector(selector)).find(Boolean); if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') return false; button.click(); return true; }"));
 
-                if ($nextButton) {
-                    $nextSelector = $selector;
-                    break;
-                }
-            }
-
-            if (! $nextSelector) {
-                $this->logDebug('No next page button found');
-
-                return false;
-            }
-
-            // Check if button is disabled
-            $isDisabled = $this->mcpRequest('getAttribute', [
-                'selector' => $nextSelector,
-                'attribute' => 'disabled',
-            ]);
-
-            if ($isDisabled) {
-                $this->logDebug('Next page button is disabled');
-
-                return false;
-            }
-
-            // Click next page button
-            $this->mcpRequest('click', [
-                'selector' => $nextSelector,
-            ]);
-
-            $this->waitForAnySelector([OlxSelectors::LISTING_CONTAINER, OlxSelectors::LISTING_CONTAINER_FALLBACK], 10000);
-
-            $this->logDebug('Successfully navigated to next page');
-
-            return true;
-
-        } catch (\Exception $e) {
-            $this->logWarning('Failed to navigate to next page', [
-                'error' => $e->getMessage(),
-            ]);
-
+        if (! $clicked) {
             return false;
         }
-    }
 
-    /**
-     * Extract text content with fallback selectors
-     */
-    private function extractWithFallback(array $element, array $selectors, string $attribute = 'textContent'): ?string
-    {
-        foreach ($selectors as $selector) {
-            try {
-                $result = $this->mcpRequest('queryInElement', [
-                    'element' => $element,
-                    'selector' => $selector,
-                    'attribute' => $attribute,
-                ]);
-
-                if ($result && trim($result) !== '') {
-                    return trim($result);
-                }
-            } catch (\Exception $e) {
-                // Continue to next selector
-                continue;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Check if element has a specific selector
-     */
-    private function hasSelector(array $element, string $selector): bool
-    {
-        try {
-            $result = $this->mcpRequest('queryInElement', [
-                'element' => $element,
-                'selector' => $selector,
-            ]);
-
-            return ! empty($result);
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Extract image URLs from listing element
-     */
-    private function extractImageUrls(array $element): array
-    {
-        try {
-            $images = $this->mcpRequest('queryAllInElement', [
-                'element' => $element,
-                'selector' => OlxSelectors::LISTING_IMAGE,
-            ]);
-
-            if (empty($images)) {
-                // Try fallback selector
-                $images = $this->mcpRequest('queryAllInElement', [
-                    'element' => $element,
-                    'selector' => OlxSelectors::LISTING_IMAGE_FALLBACK,
-                ]);
-            }
-
-            $imageUrls = [];
-            foreach ($images as $img) {
-                $src = $this->mcpRequest('getElementAttribute', [
-                    'element' => $img,
-                    'attribute' => 'src',
-                ]);
-
-                if ($src && ! str_contains($src, 'placeholder') && ! str_contains($src, 'default')) {
-                    $imageUrls[] = ParsedListing::normalizeUrl($src);
-                }
-            }
-
-            return array_unique($imageUrls);
-
-        } catch (\Exception $e) {
-            $this->logWarning('Failed to extract image URLs', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Process and clean image URLs
-     */
-    private function processImageUrls(array $imageUrls): array
-    {
-        $processed = [];
-
-        foreach ($imageUrls as $url) {
-            if (empty($url) || ! is_string($url)) {
-                continue;
-            }
-
-            // Skip placeholder and default images
-            if (str_contains($url, 'placeholder') ||
-                str_contains($url, 'default') ||
-                str_contains($url, 'no-image')) {
-                continue;
-            }
-
-            // Normalize URL
-            $normalizedUrl = ParsedListing::normalizeUrl($url);
-
-            // Validate URL format
-            if (filter_var($normalizedUrl, FILTER_VALIDATE_URL)) {
-                $processed[] = $normalizedUrl;
-            }
-        }
-
-        return array_unique($processed);
-    }
-
-    /**
-     * Make MCP request to Playwright service
-     *
-     * @return mixed
-     */
-    private function mcpRequest(string $action, array $params = [])
-    {
-        $this->assertCrawlingPermitted();
-        $this->throttleRequest();
-
-        $response = Http::timeout(30)
-            ->withHeaders([
-                'Authorization' => 'Bearer '.$this->mcpToken,
-                'Content-Type' => 'application/json',
-                'User-Agent' => $this->userAgent,
-            ])
-            ->post($this->mcpEndpoint.'/playwright/'.$action, $params);
-
-        if (! $response->successful()) {
-            throw new \Exception("MCP request failed: {$action} - ".$response->body());
-        }
-
-        $data = $response->json();
-
-        if (isset($data['error'])) {
-            throw new \Exception("MCP error: {$action} - ".$data['error']);
-        }
-
-        return $data['result'] ?? $data;
+        return $this->waitForChangedListings($before);
     }
 
     private function enrichListingsFromDetailPages(array $listings): array
     {
         foreach ($listings as $index => $listing) {
             try {
-                $this->mcpRequest('navigate', ['url' => ParsedListing::normalizeUrl($listing['url'])]);
-                $listing['description'] = $this->extractPageAttribute([OlxSelectors::DETAIL_DESCRIPTION, OlxSelectors::DETAIL_DESCRIPTION_FALLBACK], 'textContent');
-                $listing['seller_name'] = $this->extractPageAttribute([OlxSelectors::DETAIL_SELLER, OlxSelectors::DETAIL_SELLER_FALLBACK], 'textContent');
-                $listing['seller_url'] = $this->extractPageAttribute([OlxSelectors::DETAIL_SELLER_URL, OlxSelectors::DETAIL_SELLER_URL_FALLBACK], 'href');
-                $listing['posted_at'] = $this->normalizePostedAt($this->extractPageAttribute([OlxSelectors::DETAIL_POSTED_DATE, OlxSelectors::DETAIL_POSTED_DATE_FALLBACK], 'textContent')) ?? ($listing['posted_at'] ?? null);
-                $listings[$index] = $listing;
-            } catch (\Throwable $e) {
-                $this->logWarning('Failed to enrich listing from detail page', [
-                    'url' => $listing['url'] ?? null,
-                    'error' => $e->getMessage(),
-                ]);
+                $this->performMcpOperation(fn (): array => $this->mcp->navigate(ParsedListing::normalizeUrl($listing['url'])));
+                $detail = $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate($this->detailExtractorFunction()));
+                if (is_array($detail)) {
+                    $listings[$index] = array_merge($listing, array_filter($detail, fn (mixed $value): bool => $value !== null && $value !== ''));
+                    $listings[$index]['posted_at'] = $this->normalizePostedAt($detail['posted_at'] ?? null) ?? ($listing['posted_at'] ?? null);
+                }
+            } catch (\Throwable $exception) {
+                $this->logWarning('Failed to enrich listing from detail page', ['url' => $listing['url'] ?? null, 'error' => $exception->getMessage()]);
             }
         }
 
         return $listings;
     }
 
-    private function extractPageAttribute(array $selectors, string $attribute): ?string
+    private function waitForSelectorViaEvaluate(array $selectors): void
     {
-        foreach ($selectors as $selector) {
-            try {
-                $value = $this->mcpRequest('query', ['selector' => $selector, 'attribute' => $attribute]);
-                if (is_string($value) && trim($value) !== '') {
-                    return trim($value);
-                }
-            } catch (\Throwable) {
-                continue;
-            }
+        $selectors = json_encode($selectors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+        if (! $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate("() => {$selectors}.some(selector => document.querySelector(selector))"))) {
+            throw new CrawlerException('None of the configured selectors were found.');
         }
-
-        return null;
     }
 
-    private function waitForAnySelector(array $selectors, int $timeout): string
+    private function waitForChangedListings(string $before): bool
     {
-        foreach ($selectors as $selector) {
-            try {
-                $this->mcpRequest('wait', ['selector' => $selector, 'timeout' => $timeout]);
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            if ($this->listingFingerprint() !== $before) {
+                return true;
+            }
 
-                return $selector;
-            } catch (\Throwable) {
-                continue;
+            if ($attempt < 2) {
+                $this->performMcpOperation(function (): null {
+                    $this->mcp->waitForTime(1);
+
+                    return null;
+                });
             }
         }
 
-        throw new CrawlerException('None of the configured selectors were found.');
+        return false;
     }
 
-    private function clickAnySelector(array $selectors): void
+    private function listingFingerprint(): string
     {
-        foreach ($selectors as $selector) {
-            try {
-                $this->mcpRequest('click', ['selector' => $selector]);
+        $selectors = json_encode([OlxSelectors::LISTING_ITEM, OlxSelectors::LISTING_ITEM_FALLBACK], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+        $fingerprint = $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate("() => {$selectors}.map(selector => [...document.querySelectorAll(selector)].map(card => card.querySelector('a')?.href || card.textContent?.trim() || '')).find(items => items.length) || []"));
 
-                return;
-            } catch (\Throwable) {
-                continue;
-            }
+        if (! is_array($fingerprint)) {
+            throw new CrawlerException('MCP returned an invalid listing fingerprint.');
         }
 
-        throw new CrawlerException('None of the configured selectors could be clicked.');
+        return json_encode($fingerprint, JSON_THROW_ON_ERROR);
+    }
+
+    private function performMcpOperation(callable $operation): mixed
+    {
+        $this->assertCrawlingPermitted();
+        $this->throttleRequest();
+
+        return $operation();
+    }
+
+    private function resultsExtractorFunction(): string
+    {
+        $selectors = json_encode($this->selectorMap(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+
+        return <<<JS
+() => {
+  const selectors = {$selectors};
+  const pick = (root, names) => names.map(name => root.querySelector(selectors[name])).find(Boolean);
+  const all = (root, names) => { for (const name of names) { const found = [...root.querySelectorAll(selectors[name])]; if (found.length) return found; } return []; };
+  const text = element => (element?.textContent || '').trim();
+  const cards = all(document, ['listing_item', 'listing_item_fallback']);
+  return cards.map((card, extraction_index) => {
+    const title = pick(card, ['listing_title', 'listing_title_fallback']);
+    const url = pick(card, ['listing_url', 'listing_url_fallback']);
+    const price = pick(card, ['listing_price', 'listing_price_fallback']);
+    const location = pick(card, ['listing_location', 'listing_location_fallback']);
+    return { title: text(title), url: url?.href || url?.getAttribute('href') || '', price_raw: text(price), location: text(location), image_urls: all(card, ['listing_image', 'listing_image_fallback']).map(image => image.src || image.getAttribute('src') || '').filter(Boolean), is_promoted: !!card.querySelector(selectors.listing_promoted), is_urgent: !!card.querySelector(selectors.listing_urgent), is_negotiable: !!card.querySelector(selectors.listing_negotiable), metadata: { extraction_index, extraction_timestamp: new Date().toISOString() } };
+  });
+}
+JS;
+    }
+
+    private function detailExtractorFunction(): string
+    {
+        $selectors = json_encode($this->selectorMap(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+
+        return <<<JS
+() => {
+  const selectors = {$selectors};
+  const pick = (names, href = false) => { for (const name of names) { const element = document.querySelector(selectors[name]); const value = href ? element?.href : element?.textContent?.trim(); if (value) return value; } return null; };
+  return { description: pick(['detail_description', 'detail_description_fallback']), seller_name: pick(['detail_seller', 'detail_seller_fallback']), seller_url: pick(['detail_seller_url', 'detail_seller_url_fallback'], true), posted_at: pick(['detail_posted_date', 'detail_posted_date_fallback']) };
+}
+JS;
+    }
+
+    /** @return array<string, string> */
+    private function selectorMap(): array
+    {
+        return ['listing_item' => OlxSelectors::LISTING_ITEM, 'listing_item_fallback' => OlxSelectors::LISTING_ITEM_FALLBACK, 'listing_title' => OlxSelectors::LISTING_TITLE, 'listing_title_fallback' => OlxSelectors::LISTING_TITLE_FALLBACK, 'listing_url' => OlxSelectors::LISTING_URL, 'listing_url_fallback' => OlxSelectors::LISTING_URL_FALLBACK, 'listing_price' => OlxSelectors::LISTING_PRICE, 'listing_price_fallback' => OlxSelectors::LISTING_PRICE_FALLBACK, 'listing_location' => OlxSelectors::LISTING_LOCATION, 'listing_location_fallback' => OlxSelectors::LISTING_LOCATION_FALLBACK, 'listing_image' => OlxSelectors::LISTING_IMAGE, 'listing_image_fallback' => OlxSelectors::LISTING_IMAGE_FALLBACK, 'listing_promoted' => OlxSelectors::LISTING_PROMOTED, 'listing_urgent' => OlxSelectors::LISTING_URGENT, 'listing_negotiable' => OlxSelectors::LISTING_NEGOTIABLE, 'detail_description' => OlxSelectors::DETAIL_DESCRIPTION, 'detail_description_fallback' => OlxSelectors::DETAIL_DESCRIPTION_FALLBACK, 'detail_seller' => OlxSelectors::DETAIL_SELLER, 'detail_seller_fallback' => OlxSelectors::DETAIL_SELLER_FALLBACK, 'detail_seller_url' => OlxSelectors::DETAIL_SELLER_URL, 'detail_seller_url_fallback' => OlxSelectors::DETAIL_SELLER_URL_FALLBACK, 'detail_posted_date' => OlxSelectors::DETAIL_POSTED_DATE, 'detail_posted_date_fallback' => OlxSelectors::DETAIL_POSTED_DATE_FALLBACK];
+    }
+
+    private function processImageUrls(array $imageUrls): array
+    {
+        return array_values(array_unique(array_filter(array_map(fn (mixed $url): ?string => is_string($url) && ! str_contains($url, 'placeholder') && ! str_contains($url, 'default') && ! str_contains($url, 'no-image') ? ParsedListing::normalizeUrl($url) : null, $imageUrls))));
     }
 
     private function throttleRequest(): void
@@ -693,15 +277,11 @@ class OlxCrawlerService extends BaseService
         $now = microtime(true);
         $this->availableRequestTokens = min($this->burstLimit, $this->availableRequestTokens + (($now - $this->lastTokenRefillAt) * ($this->requestsPerMinute / 60)));
         $this->lastTokenRefillAt = $now;
-
         if ($this->availableRequestTokens < 1) {
             usleep((int) ceil(((1 - $this->availableRequestTokens) / ($this->requestsPerMinute / 60)) * 1_000_000));
             $this->availableRequestTokens = 1;
-            $this->lastTokenRefillAt = microtime(true);
         }
-
         $this->availableRequestTokens--;
-
         if ($this->requestDelayMs > 0) {
             usleep($this->requestDelayMs * 1000);
         }
@@ -712,13 +292,12 @@ class OlxCrawlerService extends BaseService
         if (! config('crawler.enabled', false)) {
             throw new CrawlerException('Crawling is disabled by CRAWLER_ENABLED.');
         }
-
         if (config('crawler.require_terms_acknowledgement', true) && ! config('crawler.terms_acknowledged', false)) {
             throw new CrawlerException('Crawling requires an acknowledged site terms review.');
         }
 
         $windows = array_filter(array_map('trim', explode(',', (string) config('crawler.allowed_windows', ''))));
-        if (empty($windows)) {
+        if ($windows === []) {
             return;
         }
 
@@ -743,21 +322,16 @@ class OlxCrawlerService extends BaseService
         if (! $postedAt) {
             return null;
         }
-
         $text = trim((string) preg_replace('/\s+/', ' ', $postedAt));
-        $timezone = (string) config('crawler.timezone', 'Europe/Bucharest');
-        $now = Carbon::now($timezone);
-
+        $now = Carbon::now((string) config('crawler.timezone', 'Europe/Bucharest'));
         if (preg_match('/(?:azi|today)\s+(\d{1,2}:\d{2})/iu', $text, $matches)) {
             return $now->setTimeFromTimeString($matches[1])->toIso8601String();
         }
-
         if (preg_match('/(?:ieri|yesterday)\s+(\d{1,2}:\d{2})/iu', $text, $matches)) {
             return $now->subDay()->setTimeFromTimeString($matches[1])->toIso8601String();
         }
-
         try {
-            return Carbon::parse(str_ireplace('publicat pe', '', $text), $timezone)->toIso8601String();
+            return Carbon::parse(str_ireplace('publicat pe', '', $text), (string) config('crawler.timezone', 'Europe/Bucharest'))->toIso8601String();
         } catch (\Throwable) {
             return null;
         }
