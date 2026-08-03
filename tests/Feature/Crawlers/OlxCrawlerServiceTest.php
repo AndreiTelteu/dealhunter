@@ -23,8 +23,13 @@ class OlxCrawlerServiceTest extends TestCase
         ]);
 
         $mcp = $this->createMock(PlaywrightMcpClient::class);
+        $visitedUrls = [];
         $mcp->expects($this->once())->method('ensureInitialized');
-        $mcp->expects($this->exactly(3))->method('navigate');
+        $mcp->expects($this->exactly(3))->method('navigate')->willReturnCallback(function (string $url) use (&$visitedUrls): array {
+            $visitedUrls[] = $url;
+
+            return [];
+        });
         $mcp->expects($this->once())->method('waitForTime')->with(1);
         $mcp->expects($this->once())->method('closeSession');
         $mcp->method('evaluate')->willReturnOnConsecutiveCalls(
@@ -47,6 +52,7 @@ class OlxCrawlerServiceTest extends TestCase
 
         $this->assertSame(['First', 'Second'], array_column($listings, 'title'));
         $this->assertSame(['First detail', 'Second detail'], array_column($listings, 'description'));
+        $this->assertSame('https://www.olx.ro/oferte/q-laptop/', $visitedUrls[0]);
     }
 
     public function test_it_enforces_permission_before_each_network_operation(): void

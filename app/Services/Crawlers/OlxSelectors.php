@@ -37,7 +37,7 @@ class OlxSelectors
 
     public const LISTING_ITEM_FALLBACK = '.offer-wrapper, .listing-card, .ad-card, article';
 
-    public const LISTING_TITLE = 'h6[data-testid="ad-title"]';
+    public const LISTING_TITLE = 'a[data-testid="card-title-link"]';
 
     public const LISTING_TITLE_FALLBACK = 'h3 a, h4 a, h5 a, h6 a, .offer-item-title, .title-cell a, a[href*="/d/oferta/"]';
 

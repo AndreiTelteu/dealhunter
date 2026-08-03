@@ -125,7 +125,7 @@ class OlxCrawlerService extends BaseService
     private function navigateToSearch(string $searchTerm): void
     {
         $this->retryWithBackoff(function () use ($searchTerm): void {
-            $this->performMcpOperation(fn (): array => $this->mcp->navigate('https://www.olx.ro/ro/oferta/q-'.rawurlencode($searchTerm).'/'));
+            $this->performMcpOperation(fn (): array => $this->mcp->navigate('https://www.olx.ro/oferte/q-'.rawurlencode($searchTerm).'/'));
             $this->waitForSelectorViaEvaluate([OlxSelectors::LISTING_CONTAINER, OlxSelectors::LISTING_CONTAINER_FALLBACK]);
         }, 3, 2000, ['search_term' => $searchTerm]);
     }

@@ -47,7 +47,10 @@ class McpClientTest extends TestCase
         $client->closeSession();
 
         Http::assertSent(function (Request $request): bool {
-            return $request->method() === 'POST' && $request['method'] === 'tools/list' && $request->header('Mcp-Session-Id') === ['session-1'];
+            return $request->method() === 'POST'
+                && $request['method'] === 'tools/list'
+                && $request->header('Mcp-Session-Id') === ['session-1']
+                && $request->header('MCP-Protocol-Version') === ['2025-06-18'];
         });
         Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE' && $request->header('Mcp-Session-Id') === ['session-1']);
     }

@@ -151,6 +151,10 @@ class McpClient
             'Accept' => 'application/json, text/event-stream',
             'Content-Type' => 'application/json',
             'User-Agent' => $this->options['user_agent'] ?? 'DealHunter MCP Client',
+            // Streamable HTTP MCP requires the negotiated protocol version on
+            // post-initialization requests; without it Playwright MCP can accept
+            // a tool call but return an empty 202 response instead of its result.
+            'MCP-Protocol-Version' => $this->session->protocolVersion ?? ($this->options['protocol_version'] ?? '2025-06-18'),
         ];
 
         if ($this->session->sessionId) {
