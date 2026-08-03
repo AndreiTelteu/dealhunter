@@ -1,3 +1,204 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    :root {
+        --void: #06080a;
+        --bench: #0a0e11;
+        --rail: #0d1317;
+        --hairline: #1c242a;
+        --ink: #eaf4f6;
+        --dim: #8fa8b0;
+        --beam: #59e3ff;
+        --em-green: #7dffa8;
+        --em-amber: #ffc46b;
+        --em-red: #ff5d5d;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background-color: var(--void);
+        color: var(--ink);
+    }
+
+    ::selection {
+        background: var(--beam);
+        color: var(--void);
+    }
+}
+
+@layer components {
+    /* ---- engraved instrument label ---- */
+    .placard {
+        @apply font-mono uppercase;
+        letter-spacing: 0.16em;
+        color: var(--dim);
+    }
+
+    /* ---- graticule: engraved graph film under data regions ---- */
+    .graticule {
+        background-image:
+            linear-gradient(to right, rgba(143, 168, 176, 0.07) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(143, 168, 176, 0.07) 1px, transparent 1px);
+        background-size: 44px 44px;
+    }
+    .graticule-fine {
+        background-image:
+            linear-gradient(to right, rgba(143, 168, 176, 0.05) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(143, 168, 176, 0.05) 1px, transparent 1px);
+        background-size: 11px 11px;
+    }
+
+    /* ---- the scanning beam: a literal line of light ---- */
+    .beam-core {
+        background: linear-gradient(180deg, transparent, var(--beam) 18%, #d8f7ff 50%, var(--beam) 82%, transparent);
+        box-shadow:
+            0 4px 10px rgba(0, 0, 0, 0.8),
+            0 0 18px rgba(89, 227, 255, 0.55),
+            0 0 46px rgba(89, 227, 255, 0.22);
+    }
+
+    /* ---- spectral emission lines: light, with real offset shadow ---- */
+    .spec-line {
+        box-shadow:
+            0 3px 6px rgba(0, 0, 0, 0.7),
+            0 0 12px currentColor;
+    }
+
+    /* ---- beam-key switch ---- */
+    .beamkey {
+        @apply inline-flex items-center justify-center gap-2 font-mono uppercase;
+        letter-spacing: 0.14em;
+        border: 1px solid var(--hairline);
+        background: linear-gradient(180deg, #10171b 0%, #0a0f12 100%);
+        color: var(--ink);
+        box-shadow:
+            0 1px 0 rgba(234, 244, 246, 0.05) inset,
+            0 6px 0 0 #04070a,
+            0 10px 18px -8px rgba(0, 0, 0, 0.85);
+        transition: transform 0.08s ease, box-shadow 0.08s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .beamkey:hover {
+        color: var(--beam);
+        border-color: rgba(89, 227, 255, 0.35);
+    }
+    .beamkey:active {
+        transform: translateY(5px);
+        box-shadow:
+            0 1px 0 rgba(234, 244, 246, 0.04) inset,
+            0 1px 0 0 #04070a,
+            0 4px 8px -6px rgba(0, 0, 0, 0.85);
+    }
+    .beamkey-armed {
+        color: var(--beam);
+        border-color: rgba(89, 227, 255, 0.45);
+        text-shadow: 0 0 14px rgba(89, 227, 255, 0.55);
+    }
+
+    .focus-ring:focus-visible {
+        outline: 2px solid var(--beam);
+        outline-offset: 3px;
+    }
+}
+
+@layer utilities {
+    .text-dim {
+        color: var(--dim);
+    }
+    .text-beam {
+        color: var(--beam);
+    }
+    .text-em-green {
+        color: var(--em-green);
+    }
+    .text-em-amber {
+        color: var(--em-amber);
+    }
+    .text-em-red {
+        color: var(--em-red);
+    }
+    .border-hairline {
+        border-color: var(--hairline);
+    }
+    .bg-bench {
+        background-color: var(--bench);
+    }
+    .bg-rail {
+        background-color: var(--rail);
+    }
+}
+
+/* ---- beam travel: one orchestrated pass, then the beam locks mid-field ---- */
+@keyframes beam-travel {
+    0% { left: 4%; opacity: 0; }
+    4% { opacity: 1; }
+    96% { opacity: 1; }
+    100% { left: 58%; opacity: 1; }
+}
+.beam-travel {
+    animation: beam-travel 3.6s cubic-bezier(0.45, 0, 0.35, 1) 0.5s both,
+               beam-breathe 2.6s ease-in-out 4.2s infinite;
+}
+
+/* ---- spectral lines ignite as the beam passes ---- */
+@keyframes line-ignite {
+    0% { transform: scaleY(0); opacity: 0; }
+    40% { opacity: 1; }
+    70% { transform: scaleY(1.12); }
+    100% { transform: scaleY(1); opacity: 1; }
+}
+.line-ignite {
+    transform-origin: 50% 100%;
+    animation: line-ignite 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* ---- idle beam breathe after the pass ---- */
+@keyframes beam-breathe {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+.beam-idle {
+    animation: beam-breathe 2.6s ease-in-out infinite;
+}
+
+/* ---- alert line pulse: the one moment the bench raises its voice ---- */
+@keyframes alert-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+.alert-live {
+    animation: alert-pulse 1.6s ease-in-out infinite;
+}
+
+/* ---- sample marker drift on the conveyor readout ---- */
+@keyframes trace-dash {
+    to { stroke-dashoffset: -28; }
+}
+.trace-live {
+    animation: trace-dash 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .beam-travel,
+    .line-ignite,
+    .beam-idle,
+    .alert-live,
+    .trace-live {
+        animation: none;
+    }
+    .beam-travel {
+        left: 58%;
+        opacity: 1;
+    }
+    .line-ignite {
+        transform: none;
+        opacity: 1;
+    }
+    html {
+        scroll-behavior: auto;
+    }
+}
