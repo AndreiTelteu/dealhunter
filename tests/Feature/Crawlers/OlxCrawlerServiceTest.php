@@ -33,7 +33,6 @@ class OlxCrawlerServiceTest extends TestCase
         $mcp->expects($this->once())->method('waitForTime')->with(1);
         $mcp->expects($this->once())->method('closeSession');
         $mcp->method('evaluate')->willReturnOnConsecutiveCalls(
-            true,
             [['title' => 'First', 'url' => '/d/oferta/first', 'price_raw' => '100 lei', 'location' => 'Bucuresti']],
             ['first'],
             true,

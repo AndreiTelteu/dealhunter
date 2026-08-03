@@ -126,7 +126,6 @@ class OlxCrawlerService extends BaseService
     {
         $this->retryWithBackoff(function () use ($searchTerm): void {
             $this->performMcpOperation(fn (): array => $this->mcp->navigate('https://www.olx.ro/oferte/q-'.rawurlencode($searchTerm).'/'));
-            $this->waitForSelectorViaEvaluate([OlxSelectors::LISTING_CONTAINER, OlxSelectors::LISTING_CONTAINER_FALLBACK]);
         }, 3, 2000, ['search_term' => $searchTerm]);
     }
 
@@ -144,7 +143,9 @@ class OlxCrawlerService extends BaseService
                 $listing['posted_at'] = $this->normalizePostedAt($listing['location'] ?? null);
             }
 
-            return array_values(array_filter($listings, fn (mixed $listing): bool => is_array($listing) && ! empty($listing['title']) && ! empty($listing['url'])));
+            $filtered = array_values(array_filter($listings, fn (mixed $listing): bool => is_array($listing) && ! empty($listing['title']) && ! empty($listing['url'])));
+
+            return $filtered;
         }, 2, 1000);
     }
 
@@ -177,14 +178,6 @@ class OlxCrawlerService extends BaseService
         }
 
         return $listings;
-    }
-
-    private function waitForSelectorViaEvaluate(array $selectors): void
-    {
-        $selectors = json_encode($selectors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
-        if (! $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate("() => {$selectors}.some(selector => document.querySelector(selector))"))) {
-            throw new CrawlerException('None of the configured selectors were found.');
-        }
     }
 
     private function waitForChangedListings(string $before): bool

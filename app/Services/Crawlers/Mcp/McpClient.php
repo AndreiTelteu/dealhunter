@@ -131,6 +131,16 @@ class McpClient
             }
 
             if ($body === '' && $response->status() !== 202) {
+                // Playwright MCP occasionally closes a Streamable HTTP response
+                // before emitting SSE data. Retrying the same JSON-RPC request on
+                // the active session is safe and avoids turning a transient empty
+                // response into an empty result set.
+                if (++$attempt < $maxAttempts) {
+                    $this->sleepBeforeRetry($attempt);
+
+                    continue;
+                }
+
                 throw new McpProtocolException('MCP returned an empty response body.');
             }
 
