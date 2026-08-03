@@ -37,6 +37,8 @@ AI_CLASSIFICATION_ENABLED=true
 AI_PROVIDER=openai                    # openai or anthropic
 AI_MODEL=gpt-3.5-turbo               # Provider-specific model
 AI_API_KEY=your_api_key_here         # API key for the provider
+# Only for AI_PROVIDER=openai. This also supports OpenAI-compatible providers.
+AI_OPENAI_BASE_URL=https://api.openai.com/v1
 
 # Classification settings
 AI_CONFIDENCE_THRESHOLD=0.7          # Minimum confidence for high-confidence classification

@@ -16,6 +16,9 @@ return [
     'provider' => env('AI_PROVIDER', 'openai'),
     'model' => env('AI_MODEL', 'gpt-3.5-turbo'),
     'api_key' => env('AI_API_KEY'),
+    // OpenAI-compatible API root. Include any provider-specific version segment,
+    // for example https://api.openai.com/v1 or https://gateway.example/v1.
+    'openai_base_url' => rtrim((string) env('AI_OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
 
     /*
     |--------------------------------------------------------------------------

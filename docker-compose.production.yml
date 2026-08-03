@@ -39,6 +39,7 @@ services:
       - MCP_PLAYWRIGHT_TOKEN=${MCP_PLAYWRIGHT_TOKEN}
       - AI_PROVIDER=${AI_PROVIDER:-openai}
       - AI_API_KEY=${AI_API_KEY}
+      - AI_OPENAI_BASE_URL=${AI_OPENAI_BASE_URL:-https://api.openai.com/v1}
     volumes:
       - storage_data:/var/www/storage
       - logs_data:/var/log
