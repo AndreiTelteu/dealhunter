@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\SystemHealth;
 use App\Services\Crawlers\OlxCrawlerService;
+use App\Services\Crawlers\ParsedListing;
 use App\Services\IntentClassifierService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -183,13 +184,15 @@ class SystemHealthService
         try {
             $classifier = app(IntentClassifierService::class);
             
-            // Test with a simple classification
+            // Test with a minimal but valid listing DTO.
             $testResult = $classifier->classifyListing(
                 'laptop',
-                (object) [
-                    'title' => 'Laptop Dell second hand',
-                    'description' => 'Laptop in good condition, works perfectly'
-                ]
+                new ParsedListing(
+                    externalId: 'health-check-listing',
+                    url: 'https://example.test/listings/health-check-listing',
+                    title: 'Laptop Dell second hand',
+                    description: 'Laptop in good condition, works perfectly',
+                ),
             );
             
             $responseTime = (microtime(true) - $startTime) * 1000;

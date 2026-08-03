@@ -11,6 +11,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
+
         // Add performance monitoring middleware to web routes
         $middleware->web(append: [
             \App\Http\Middleware\PerformanceMonitoring::class,
