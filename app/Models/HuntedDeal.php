@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HuntedDeal extends Model
 {
+    use HasFactory;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -48,5 +51,13 @@ class HuntedDeal extends Model
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
+    }
+
+    /**
+     * Get the average price snapshots for the hunted deal.
+     */
+    public function priceSnapshots(): HasMany
+    {
+        return $this->hasMany(HuntedDealPriceSnapshot::class)->orderBy('captured_at');
     }
 }

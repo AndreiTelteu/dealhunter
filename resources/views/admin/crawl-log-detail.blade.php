@@ -1,192 +1,26 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ __('Crawl Log Details') }}
-            </h2>
-            <a href="{{ route('admin.crawl-logs') }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm">
-                Back to Logs
-            </a>
-        </div>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            
-            <!-- Basic Information -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <h3 class="text-lg font-semibold mb-4">Basic Information</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Crawl ID</label>
-                                <div class="text-sm text-gray-900">{{ $crawlLog->id }}</div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Type</label>
-                                <div class="text-sm text-gray-900">{{ ucfirst(str_replace('_', ' ', $crawlLog->type)) }}</div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Status</label>
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                    @if($crawlLog->status === 'completed' && $crawlLog->total_errors === 0) bg-green-100 text-green-800
-                                    @elseif($crawlLog->status === 'completed') bg-yellow-100 text-yellow-800
-                                    @elseif($crawlLog->status === 'failed') bg-red-100 text-red-800
-                                    @elseif($crawlLog->status === 'partial') bg-yellow-100 text-yellow-800
-                                    @else bg-blue-100 text-blue-800
-                                    @endif">
-                                    {{ ucfirst($crawlLog->status) }}
-                                </span>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Triggered By</label>
-                                <div class="text-sm text-gray-900">
-                                    {{ ucfirst($crawlLog->triggered_by) }}
-                                    @if($crawlLog->user)
-                                        ({{ $crawlLog->user->name }})
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Started At</label>
-                                <div class="text-sm text-gray-900">{{ $crawlLog->started_at->format('M j, Y H:i:s') }}</div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Completed At</label>
-                                <div class="text-sm text-gray-900">
-                                    {{ $crawlLog->completed_at ? $crawlLog->completed_at->format('M j, Y H:i:s') : 'Not completed' }}
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Duration</label>
-                                <div class="text-sm text-gray-900">{{ $crawlLog->formatted_duration }}</div>
-                            </div>
-                            @if($crawlLog->notes)
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Notes</label>
-                                    <div class="text-sm text-gray-900">{{ $crawlLog->notes }}</div>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
+    <x-slot name="header"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="placard mb-1.5 text-[0.6rem]">Administrare / Jurnal rulări</p><h2 class="font-sans text-xl font-bold text-[#eaf4f6] sm:text-2xl">Detalii rulare</h2></div><a href="{{ route('admin.crawl-logs') }}" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">&larr; Jurnal rulări</a></div></x-slot>
+    <div class="py-8 sm:py-10"><div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+        <section class="border border-hairline graticule" aria-labelledby="trace-heading"><div class="flex flex-wrap items-end justify-between gap-4 border-b border-hairline px-5 py-4"><div><p class="placard text-[0.6rem]">Trasă de execuție</p><h3 id="trace-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Rulare #{{ $crawlLog->id }}</h3></div><x-admin.partials.status :status="$crawlLog->status" :total-errors="$crawlLog->total_errors" /></div><dl class="grid divide-x divide-y divide-hairline md:grid-cols-2"><div class="p-5"><dt class="placard text-[0.55rem]">Tip</dt><dd class="mt-2 font-sans text-[#eaf4f6]">{{ ucfirst(str_replace('_', ' ', $crawlLog->type)) }}</dd></div><div class="p-5"><dt class="placard text-[0.55rem]">Declanșată de</dt><dd class="mt-2 text-[#eaf4f6]">{{ ucfirst($crawlLog->triggered_by) }} @if($crawlLog->user)({{ $crawlLog->user->name }})@endif</dd></div><div class="p-5"><dt class="placard text-[0.55rem]">Pornită</dt><dd class="mt-2 font-mono text-[0.75rem] tabular-nums text-[#eaf4f6]">{{ $crawlLog->started_at->format('d M Y, H:i:s') }}</dd></div><div class="p-5"><dt class="placard text-[0.55rem]">Finalizată / durată</dt><dd class="mt-2 font-mono text-[0.75rem] tabular-nums text-[#eaf4f6]">{{ $crawlLog->completed_at ? $crawlLog->completed_at->format('d M Y, H:i:s') : 'nefinalizată' }} · {{ $crawlLog->formatted_duration }}</dd></div>@if($crawlLog->notes)<div class="p-5 md:col-span-2"><dt class="placard text-[0.55rem]">Notițe</dt><dd class="mt-2 text-sm text-dim">{{ $crawlLog->notes }}</dd></div>@endif</dl></section>
+        <section aria-label="Statistici rulare" class="border-y border-hairline"><div class="grid grid-cols-2 divide-x divide-y divide-hairline lg:grid-cols-4 lg:divide-y-0"><div class="p-5"><p class="placard text-[0.55rem]">Căutări procesate</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-[#eaf4f6]">{{ $crawlLog->hunted_deals_processed }}</p>@if($crawlLog->hunted_deals_failed > 0)<p class="mt-1 font-mono text-[0.65rem] text-em-red">{{ $crawlLog->hunted_deals_failed }} eșuate</p>@endif</div><div class="p-5"><p class="placard text-[0.55rem]">Anunțuri găsite</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-[#eaf4f6]">{{ number_format($crawlLog->total_listings_found) }}</p>@if($crawlLog->listings_per_second)<p class="mt-1 font-mono text-[0.65rem] text-dim">{{ $crawlLog->listings_per_second }}/s</p>@endif</div><div class="p-5"><p class="placard text-[0.55rem]">Anunțuri noi</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-[#eaf4f6]">{{ number_format($crawlLog->new_deals_created) }}</p>@if($crawlLog->deals_updated > 0)<p class="mt-1 font-mono text-[0.65rem] text-dim">{{ number_format($crawlLog->deals_updated) }} actualizate</p>@endif</div><div class="p-5"><p class="placard text-[0.55rem]">Instantanee create</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-[#eaf4f6]">{{ number_format($crawlLog->snapshots_created) }}</p>@if($crawlLog->success_rate !== null)<p class="mt-1 font-mono text-[0.65rem] text-em-green">{{ $crawlLog->success_rate }}% reușită</p>@endif</div></div></section>
+        @if($crawlLog->configuration)<section class="border border-hairline bg-bench" aria-labelledby="config-heading"><div class="border-b border-hairline px-5 py-4"><p class="placard text-[0.6rem]">Sursă execuție</p><h3 id="config-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Configurația rulării</h3></div><dl class="divide-y divide-hairline">@foreach($crawlLog->configuration as $key => $value)<div class="grid gap-2 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,1fr)]"><dt class="font-sans text-sm font-semibold text-[#eaf4f6]">{{ ucfirst(str_replace('_', ' ', $key)) }}</dt><dd class="break-all font-mono text-[0.7rem] text-dim">@if(is_bool($value)){{ $value ? 'Activată' : 'Dezactivată' }}@elseif(is_array($value)){{ json_encode($value) }}@else{{ $value ?: 'Nestabilită' }}@endif</dd></div>@endforeach</dl></section>@endif
+        @if($crawlLog->total_errors > 0 && $crawlLog->errors)<section class="border border-[#ff5d5d]/50" aria-labelledby="errors-heading"><div class="border-b border-[#ff5d5d]/50 px-5 py-4"><p class="placard text-[0.6rem] text-em-red">Erori factuale</p><h3 id="errors-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Erori ({{ $crawlLog->total_errors }})</h3></div><ol class="divide-y divide-hairline">@foreach($crawlLog->errors as $index => $error)<li class="grid gap-3 px-5 py-4 sm:grid-cols-[4rem_minmax(0,1fr)]"><span class="font-mono text-[0.65rem] text-em-red">#{{ $index + 1 }}</span><p class="break-words text-sm text-dim">{{ $error }}</p></li>@endforeach</ol></section>@endif
+        @if($crawlLog->duration_ms && $crawlLog->total_listings_found > 0)
+            <section class="border border-hairline" aria-labelledby="performance-heading">
+                <div class="border-b border-hairline bg-bench px-5 py-4">
+                    <p class="placard text-[0.6rem]">Măsurători</p>
+                    <h3 id="performance-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Performanța execuției</h3>
                 </div>
-            </div>
-
-            <!-- Statistics -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <h3 class="text-lg font-semibold mb-4">Statistics</h3>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div class="bg-blue-50 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-blue-600">{{ $crawlLog->hunted_deals_processed }}</div>
-                            <div class="text-sm text-blue-700">Hunted Deals Processed</div>
-                            @if($crawlLog->hunted_deals_failed > 0)
-                                <div class="text-xs text-red-600 mt-1">{{ $crawlLog->hunted_deals_failed }} failed</div>
-                            @endif
-                        </div>
-                        <div class="bg-green-50 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-green-600">{{ number_format($crawlLog->total_listings_found) }}</div>
-                            <div class="text-sm text-green-700">Listings Found</div>
-                            @if($crawlLog->listings_per_second)
-                                <div class="text-xs text-gray-600 mt-1">{{ $crawlLog->listings_per_second }}/sec</div>
-                            @endif
-                        </div>
-                        <div class="bg-purple-50 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-purple-600">{{ number_format($crawlLog->new_deals_created) }}</div>
-                            <div class="text-sm text-purple-700">New Deals Created</div>
-                            @if($crawlLog->deals_updated > 0)
-                                <div class="text-xs text-gray-600 mt-1">{{ number_format($crawlLog->deals_updated) }} updated</div>
-                            @endif
-                        </div>
-                        <div class="bg-yellow-50 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-yellow-600">{{ number_format($crawlLog->snapshots_created) }}</div>
-                            <div class="text-sm text-yellow-700">Snapshots Created</div>
-                        </div>
-                    </div>
-                    
-                    @if($crawlLog->success_rate !== null)
-                        <div class="mt-4 text-center">
-                            <div class="text-lg font-semibold text-gray-700">Success Rate: {{ $crawlLog->success_rate }}%</div>
-                        </div>
+                <dl class="grid divide-x divide-y divide-hairline sm:grid-cols-3 sm:divide-y-0">
+                    <div class="p-5"><dt class="placard text-[0.55rem]">Durată totală</dt><dd class="mt-2 font-mono text-lg tabular-nums text-[#eaf4f6]">{{ $crawlLog->formatted_duration }}</dd></div>
+                    @if($crawlLog->listings_per_second)
+                        <div class="p-5"><dt class="placard text-[0.55rem]">Anunțuri pe secundă</dt><dd class="mt-2 font-mono text-lg tabular-nums text-[#eaf4f6]">{{ $crawlLog->listings_per_second }}</dd></div>
                     @endif
-                </div>
-            </div>
-
-            <!-- Configuration -->
-            @if($crawlLog->configuration)
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-semibold mb-4">Configuration at Time of Crawl</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            @foreach($crawlLog->configuration as $key => $value)
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">{{ ucfirst(str_replace('_', ' ', $key)) }}</label>
-                                    <div class="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                                        @if(is_bool($value))
-                                            {{ $value ? 'Enabled' : 'Disabled' }}
-                                        @elseif(is_array($value))
-                                            {{ json_encode($value) }}
-                                        @else
-                                            {{ $value ?: 'Not set' }}
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            @endif
-
-            <!-- Errors -->
-            @if($crawlLog->total_errors > 0 && $crawlLog->errors)
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-semibold mb-4">Errors ({{ $crawlLog->total_errors }})</h3>
-                        <div class="space-y-2">
-                            @foreach($crawlLog->errors as $index => $error)
-                                <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
-                                    <div class="text-sm text-red-800">
-                                        <span class="font-medium">Error {{ $index + 1 }}:</span> {{ $error }}
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            @endif
-
-            <!-- Performance Metrics -->
-            @if($crawlLog->duration_ms && $crawlLog->total_listings_found > 0)
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-semibold mb-4">Performance Metrics</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="text-center">
-                                <div class="text-2xl font-bold text-gray-700">{{ $crawlLog->formatted_duration }}</div>
-                                <div class="text-sm text-gray-600">Total Duration</div>
-                            </div>
-                            @if($crawlLog->listings_per_second)
-                                <div class="text-center">
-                                    <div class="text-2xl font-bold text-gray-700">{{ $crawlLog->listings_per_second }}</div>
-                                    <div class="text-sm text-gray-600">Listings per Second</div>
-                                </div>
-                            @endif
-                            @if($crawlLog->hunted_deals_processed > 0)
-                                <div class="text-center">
-                                    <div class="text-2xl font-bold text-gray-700">
-                                        {{ round($crawlLog->duration_ms / $crawlLog->hunted_deals_processed) }}ms
-                                    </div>
-                                    <div class="text-sm text-gray-600">Avg Time per Hunted Deal</div>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            @endif
-
-        </div>
-    </div>
+                    @if($crawlLog->hunted_deals_processed > 0)
+                        <div class="p-5"><dt class="placard text-[0.55rem]">Timp mediu / căutare</dt><dd class="mt-2 font-mono text-lg tabular-nums text-[#eaf4f6]">{{ round($crawlLog->duration_ms / $crawlLog->hunted_deals_processed) }} ms</dd></div>
+                    @endif
+                </dl>
+            </section>
+        @endif
+    </div></div>
 </x-app-layout>

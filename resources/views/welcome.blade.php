@@ -28,14 +28,8 @@
             <header class="border-b border-hairline bg-rail">
                 <div class="max-w-6xl mx-auto px-5 sm:px-8">
                     <div class="flex items-center justify-between h-16">
-                        <a href="/" class="flex items-center gap-3 focus-ring rounded-sm">
-                            <span class="relative flex h-2 w-2">
-                                <span class="absolute inline-flex h-full w-full rounded-full bg-[#59e3ff] beam-idle"
-                                      style="box-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 0 10px 1px #59e3ff;"></span>
-                            </span>
-                            <span class="font-mono font-bold uppercase tracking-[0.18em] text-sm">
-                                OLX<span class="text-beam">·</span>Deal&nbsp;Hunter
-                            </span>
+                        <a href="/" class="brand-mark focus-ring flex items-center rounded-sm" aria-label="Deal Hunter - Prima pagină">
+                            <x-application-logo />
                         </a>
 
                         @if (Route::has('login'))
@@ -74,7 +68,7 @@
                             <!-- specimen source: a listing entering the beam -->
                             <div class="absolute left-[3%] top-1/2 -translate-y-1/2 w-[17%] sm:w-[15%] min-w-[4.5rem] sm:min-w-[5.5rem]">
                                 <div class="border border-hairline bg-bench px-2 sm:px-3 py-2 sm:py-2.5">
-                                    <p class="font-mono text-[0.55rem] sm:text-[0.6rem] uppercase tracking-[0.14em] text-dim mb-1 sm:mb-1.5">Anunț nou</p>
+                                    <p class="font-mono text-[0.55rem] sm:text-[0.6rem] uppercase text-dim mb-1 sm:mb-1.5">Anunț nou</p>
                                     <p class="font-mono text-[0.6rem] sm:text-[0.65rem] leading-snug text-[#eaf4f6]">iPhone 13<br>1.850 lei</p>
                                 </div>
                                 <div class="mt-2 h-px bg-gradient-to-r from-transparent via-[#59e3ff]/40 to-transparent"></div>
@@ -108,7 +102,7 @@
                             </div>
                         </div>
 
-                        <h1 id="hero-heading" class="max-w-3xl font-sans font-extrabold tracking-[-0.02em] leading-[1.04] text-[2rem] sm:text-5xl md:text-[4.2rem] text-balance break-words">
+                        <h1 id="hero-heading" class="max-w-3xl font-sans font-extrabold leading-[1.04] text-[2rem] sm:text-5xl md:text-[4.2rem] text-balance break-words">
                             Nu rata niciun chilipir<br>
                             <span class="text-beam">de pe OLX.</span>
                         </h1>
@@ -140,7 +134,7 @@
 
                         <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
                             <div>
-                                <h2 id="spectrum-heading" class="font-sans font-bold text-2xl sm:text-3xl tracking-tight">Ce afli despre un anunț, dintr-o privire</h2>
+                                <h2 id="spectrum-heading" class="font-sans font-bold text-2xl sm:text-3xl">Ce afli despre un anunț, dintr-o privire</h2>
                                 <p class="mt-2 text-dim text-sm sm:text-base" style="max-width:56ch">Fiecare anunț nou e analizat automat. Exemplul de mai jos arată ce primești pentru o căutare urmărită.</p>
                             </div>
                             <p class="placard text-[0.65rem] sm:text-right leading-relaxed">Exemplu demonstrativ<br><span class="text-dim/50">valori fictive</span></p>
@@ -210,7 +204,7 @@
                 <!-- ============ HOW THE BENCH WORKS ============ -->
                 <section class="border-t border-hairline" aria-labelledby="how-heading">
                     <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
-                        <h2 id="how-heading" class="font-sans font-bold text-2xl sm:text-3xl tracking-tight mb-14">Cum funcționează</h2>
+                        <h2 id="how-heading" class="font-sans font-bold text-2xl sm:text-3xl mb-14">Cum funcționează</h2>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-x-10 gap-y-12">
                             <div class="border-t border-hairline pt-6">
@@ -236,7 +230,7 @@
                 <section class="border-t border-hairline bg-bench">
                     <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24 text-center">
                         <p class="placard text-xs mb-6">Gratuit pentru început</p>
-                        <h2 class="font-sans font-extrabold tracking-[-0.02em] leading-tight text-3xl sm:text-4xl md:text-5xl text-balance max-w-2xl mx-auto">
+                        <h2 class="font-sans font-extrabold leading-tight text-3xl sm:text-4xl md:text-5xl text-balance max-w-2xl mx-auto">
                             Pune OLX-ul să lucreze pentru tine din seara asta.
                         </h2>
                         <p class="mt-5 text-dim max-w-md mx-auto text-sm sm:text-base" style="max-width:48ch">Îți faci cont în două minute, salvezi prima căutare și primești anunțurile noi direct în panou.</p>
@@ -259,9 +253,9 @@
                             <span class="absolute inline-flex h-full w-full rounded-full bg-[#59e3ff] beam-idle"
                                   style="box-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 0 10px 1px #59e3ff;"></span>
                         </span>
-                        <span class="font-mono uppercase tracking-[0.18em] text-xs text-dim">OLX·Deal&nbsp;Hunter</span>
+                        <span class="font-mono uppercase text-xs text-dim">OLX·Deal&nbsp;Hunter</span>
                     </div>
-                    <p class="font-mono text-xs text-dim/50 tracking-wide">&copy; {{ date('Y') }} · urmărim OLX-ul ca tu să nu o faci</p>
+                    <p class="font-mono text-xs text-dim/50">&copy; {{ date('Y') }} · urmărim OLX-ul ca tu să nu o faci</p>
                 </div>
             </footer>
         </div>

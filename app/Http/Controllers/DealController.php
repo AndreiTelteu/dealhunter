@@ -24,7 +24,8 @@ class DealController extends Controller
 
         $query = $this->baseDealQuery($user, $huntedDealId)
             ->with(['huntedDeal', 'latestSnapshot'])
-            ->withCount('snapshots');
+            ->withCount('snapshots')
+            ->withFavoriteState($user->id);
 
         // Apply search filter
         if ($request->filled('search')) {
@@ -54,8 +55,9 @@ class DealController extends Controller
             $query->where('created_at', '>=', now()->subDay());
         }
 
-        // Apply matches_intent filter
-        if ($request->boolean('matches_intent')) {
+        // Apply matches_intent filter (on by default unless explicitly disabled)
+        $matchesIntentFilter = ! $request->has('matches_intent') || $request->boolean('matches_intent');
+        if ($matchesIntentFilter) {
             $query->where('matches_intent', true);
         }
 
@@ -81,7 +83,7 @@ class DealController extends Controller
         // Get filter counts for display
         $filterCounts = $this->getFilterCounts($user, $huntedDealId);
 
-        return view('deals.index', compact('deals', 'filterCounts'));
+        return view('deals.index', compact('deals', 'filterCounts', 'matchesIntentFilter'));
     }
 
     /**
@@ -99,6 +101,8 @@ class DealController extends Controller
             'latestSnapshot',
             'snapshots' => fn (HasMany $query) => $query->orderBy('captured_at'),
         ]);
+
+        $deal->is_favorite = Auth::user()->favorites()->where('deal_id', $deal->id)->exists();
 
         return view('deals.show', compact('deal'));
     }

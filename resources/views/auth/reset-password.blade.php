@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Alege o parolă nouă</h1>
+    <h1 class="font-sans font-bold text-2xl">Alege o parolă nouă</h1>
     <p class="mt-2 text-sm text-dim">Introdu adresa de email și noua parolă.</p>
 
     <form method="POST" action="{{ route('password.store') }}" class="mt-6">

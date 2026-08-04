@@ -179,6 +179,7 @@ class DealIngestionService extends BaseService
         // Apply AI classification
         $classification = $this->classifyListing($huntedDeal, $listing);
         $dealData['matches_intent'] = $classification->matchesIntent;
+        $dealData['intent_score'] = $classification->intentScore;
         $dealData['likely_working'] = $classification->likelyWorking;
         $dealData['confidence'] = $classification->confidence;
 
@@ -213,6 +214,7 @@ class DealIngestionService extends BaseService
         // Add classification data if provided
         if ($classification) {
             $updateData['matches_intent'] = $classification->matchesIntent;
+            $updateData['intent_score'] = $classification->intentScore;
             $updateData['likely_working'] = $classification->likelyWorking;
             $updateData['confidence'] = $classification->confidence;
         }
@@ -239,6 +241,7 @@ class DealIngestionService extends BaseService
             'seller_url' => $listing->sellerUrl,
             'posted_at' => $listing->postedAt ? Carbon::parse($listing->postedAt) : null,
             'matches_intent' => $deal->matches_intent,
+            'intent_score' => $deal->intent_score,
             'likely_working' => $deal->likely_working,
             'confidence' => $deal->confidence,
             'captured_at' => $timestamp,
@@ -311,7 +314,8 @@ class DealIngestionService extends BaseService
                 matchesIntent: false,
                 likelyWorking: null,
                 confidence: 0.0,
-                reasoning: 'Classification failed: '.$e->getMessage()
+                reasoning: 'Classification failed: '.$e->getMessage(),
+                intentScore: 0,
             );
         }
     }
@@ -336,6 +340,7 @@ class DealIngestionService extends BaseService
             'seller_url' => $listing->sellerUrl,
             'posted_at' => $listing->postedAt ? Carbon::parse($listing->postedAt) : null,
             'matches_intent' => null, // Will be set by AI classification
+            'intent_score' => null, // Will be set by AI classification
             'likely_working' => null, // Will be set by AI classification
             'confidence' => null, // Will be set by AI classification
             'last_seen_at' => $timestamp,

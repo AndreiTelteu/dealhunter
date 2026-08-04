@@ -40,6 +40,7 @@ Route::get('/dashboard', function () {
         ->whereHas('huntedDeal', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })
+        ->withFavoriteState($user->id)
         ->orderBy('created_at', 'desc')
         ->limit(10)
         ->get();
@@ -64,6 +65,10 @@ Route::middleware('auth')->group(function () {
 
     // Deals routes
     Route::resource('deals', App\Http\Controllers\DealController::class)->only(['index', 'show']);
+
+    // Favorites routes
+    Route::get('/favorites', [App\Http\Controllers\FavoriteController::class, 'index'])->name('favorites.index');
+    Route::post('/deals/{deal}/favorite', [App\Http\Controllers\FavoriteController::class, 'toggle'])->name('deals.favorite.toggle');
 
     // AI Classification routes
     Route::get('/ai-classification', [App\Http\Controllers\AiClassificationController::class, 'index'])->name('ai-classification.index');

@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Creează cont</h1>
+    <h1 class="font-sans font-bold text-2xl">Creează cont</h1>
     <p class="mt-2 text-sm text-dim">Îți faci cont în două minute și salvezi prima căutare.</p>
 
     <form method="POST" action="{{ route('register') }}" class="mt-6">

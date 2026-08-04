@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Confirmă parola</h1>
+    <h1 class="font-sans font-bold text-2xl">Confirmă parola</h1>
     <p class="mt-2 text-sm text-dim leading-relaxed">Aceasta este o zonă securizată. Confirmă parola înainte de a continua.</p>
 
     <form method="POST" action="{{ route('password.confirm') }}" class="mt-6">

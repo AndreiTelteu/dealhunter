@@ -20,5 +20,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         \Illuminate\Pagination\Paginator::useTailwind();
+
+        \Illuminate\Support\Facades\View::composer('layouts.navigation', function ($view) {
+            $view->with('favoritesCount', auth()->check() ? auth()->user()->favorites()->count() : 0);
+        });
     }
 }

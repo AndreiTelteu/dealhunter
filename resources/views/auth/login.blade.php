@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Autentificare</h1>
+    <h1 class="font-sans font-bold text-2xl">Autentificare</h1>
     <p class="mt-2 text-sm text-dim">Intră în cont ca să vezi anunțurile urmărite.</p>
 
     <!-- Session Status -->

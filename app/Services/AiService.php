@@ -40,14 +40,14 @@ class AiService extends BaseService
     /**
      * Classify intent matching for a listing
      *
-     * @return array ['matches' => bool, 'confidence' => float, 'reasoning' => string]
+     * @return array ['intent_score' => int, 'matches' => bool, 'reasoning' => string]
      */
     public function classifyIntent(string $searchTerm, ParsedListing $listing): array
     {
         if (! $this->isEnabled()) {
             return [
+                'intent_score' => 0,
                 'matches' => false,
-                'confidence' => 0.0,
                 'reasoning' => 'AI classification disabled or API key missing',
             ];
         }
@@ -56,12 +56,13 @@ class AiService extends BaseService
             function () use ($searchTerm, $listing) {
                 $cacheKey = $this->getCacheKey('intent', $searchTerm, $listing->title, $listing->description);
 
-                return Cache::remember($cacheKey, 3600, function () use ($searchTerm, $listing) {
+                $rawResponse = Cache::remember($cacheKey, 3600, function () use ($searchTerm, $listing) {
                     $prompt = $this->buildIntentPrompt($searchTerm, $listing);
-                    $response = $this->callAiProvider($prompt);
 
-                    return $this->parseIntentResponse($response);
+                    return $this->callAiProvider($prompt);
                 });
+
+                return $this->parseIntentResponse($rawResponse);
             },
             [
                 'search_term' => $searchTerm,
@@ -117,14 +118,14 @@ class AiService extends BaseService
         $intentResult = $this->classifyIntent($searchTerm, $listing);
         $workingResult = $this->assessWorkingCondition($listing);
 
-        // Calculate overall confidence based on both classifications
         $overallConfidence = $this->calculateOverallConfidence($intentResult, $workingResult);
 
         return [
+            'intent_score' => $intentResult['intent_score'],
             'matches_intent' => $intentResult['matches'],
             'likely_working' => $workingResult['working'],
             'confidence' => $overallConfidence,
-            'intent_confidence' => $intentResult['confidence'],
+            'intent_confidence' => $intentResult['intent_score'] / 100,
             'working_confidence' => $workingResult['confidence'],
             'reasoning' => $this->combineReasoning($intentResult['reasoning'], $workingResult['reasoning']),
         ];
@@ -210,7 +211,8 @@ class AiService extends BaseService
                 ],
             ],
             'temperature' => 0.1,
-            'max_tokens' => 500,
+            'max_tokens' => 1000,
+            'response_format' => ['type' => 'json_object'],
         ]);
 
         if (! $response->successful()) {
@@ -225,14 +227,26 @@ class AiService extends BaseService
 
         $data = $response->json();
 
-        if (! isset($data['choices'][0]['message']['content'])) {
+        $content = $data['choices'][0]['message']['content'] ?? null;
+        if ($content === null || trim((string) $content) === '') {
+            $this->logWarning('OpenAI returned empty content', [
+                'model' => $this->model,
+                'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+                'usage' => $data['usage'] ?? null,
+                'prompt_chars' => strlen($prompt),
+                'response' => $data,
+            ]);
+
             throw new ServiceException(
-                'Invalid OpenAI response format',
-                context: ['response' => $data]
+                'OpenAI returned empty content',
+                context: [
+                    'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+                    'usage' => $data['usage'] ?? null,
+                ]
             );
         }
 
-        return $data['choices'][0]['message']['content'];
+        return (string) $content;
     }
 
     /**
@@ -246,7 +260,7 @@ class AiService extends BaseService
             'anthropic-version' => '2023-06-01',
         ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
             'model' => $this->model,
-            'max_tokens' => 500,
+            'max_tokens' => 1024,
             'messages' => [
                 [
                     'role' => 'user',
@@ -283,30 +297,70 @@ class AiService extends BaseService
     private function parseIntentResponse(string $response): array
     {
         try {
-            $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+            $cleaned = trim(preg_replace('/^```(?:json)?|```$/m', '', trim($response)) ?? $response);
+            $data = json_decode($cleaned, true, 512, JSON_THROW_ON_ERROR);
+
+            // Legacy prompt responses used {"matches": bool, "confidence": float}
+            if (! isset($data['intent_score']) && isset($data['matches'])) {
+                return [
+                    'intent_score' => $data['matches'] ? 100 : 0,
+                    'matches' => (bool) $data['matches'],
+                    'confidence' => (float) ($data['confidence'] ?? 0.5),
+                    'reasoning' => (string) ($data['reasoning'] ?? 'Legacy format response'),
+                ];
+            }
+
+            $intentScore = (int) max(0, min(100, $data['intent_score'] ?? 0));
+
+            if (isset($data['is_target_product'])) {
+                $matches = (bool) $data['is_target_product'];
+            } else {
+                $matches = $intentScore >= (int) config('ai.intent_score_threshold', 60);
+            }
 
             return [
-                'matches' => (bool) ($data['matches'] ?? false),
-                'confidence' => (float) ($data['confidence'] ?? 0.0),
+                'intent_score' => $intentScore,
+                'matches' => $matches,
+                'confidence' => $intentScore / 100,
                 'reasoning' => (string) ($data['reasoning'] ?? 'No reasoning provided'),
             ];
         } catch (\JsonException $e) {
-            $this->logWarning('Failed to parse AI response as JSON', [
+            $this->logWarning('Failed to parse AI response as JSON, attempting regex rescue', [
                 'response' => $response,
                 'error' => $e->getMessage(),
             ]);
 
-            // Fallback: try to extract boolean from text
-            $matches = str_contains(strtolower($response), 'true') ||
-                      str_contains(strtolower($response), 'yes') ||
-                      str_contains(strtolower($response), 'match');
+            $rescued = $this->rescueTruncatedJson($response);
+            if ($rescued !== null) {
+                return $rescued;
+            }
 
             return [
-                'matches' => $matches,
-                'confidence' => 0.5,
-                'reasoning' => 'Parsed from non-JSON response: '.substr($response, 0, 100),
+                'intent_score' => 0,
+                'matches' => false,
+                'confidence' => 0.0,
+                'reasoning' => 'Unparseable AI response: '.substr($response, 0, 100),
             ];
         }
+    }
+
+    /**
+     * Attempt to extract intent_score from a truncated or malformed JSON response.
+     */
+    private function rescueTruncatedJson(string $response): ?array
+    {
+        if (preg_match('/"intent_score"\s*:\s*(\d{1,3})/', $response, $m)) {
+            $score = (int) max(0, min(100, $m[1]));
+
+            return [
+                'intent_score' => $score,
+                'matches' => $score >= (int) config('ai.intent_score_threshold', 60),
+                'confidence' => $score / 100,
+                'reasoning' => 'Rescued from truncated JSON: '.substr($response, 0, 80),
+            ];
+        }
+
+        return null;
     }
 
     /**

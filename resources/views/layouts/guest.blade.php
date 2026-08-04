@@ -21,14 +21,8 @@
             <header class="border-b border-hairline bg-rail">
                 <div class="max-w-6xl mx-auto px-5 sm:px-8">
                     <div class="flex items-center justify-between h-16">
-                        <a href="/" class="flex items-center gap-3 focus-ring rounded-sm">
-                            <span class="relative flex h-2 w-2">
-                                <span class="absolute inline-flex h-full w-full rounded-full bg-[#59e3ff] beam-idle"
-                                      style="box-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 0 10px 1px #59e3ff;"></span>
-                            </span>
-                            <span class="font-mono font-bold uppercase tracking-[0.18em] text-sm">
-                                OLX<span class="text-beam">·</span>Deal&nbsp;Hunter
-                            </span>
+                        <a href="/" class="brand-mark focus-ring flex items-center rounded-sm" aria-label="Deal Hunter - Prima pagină">
+                            <x-application-logo />
                         </a>
                         <a href="/" class="placard text-xs hover:text-beam transition-colors focus-ring rounded-sm px-1 py-1">
                             &larr; Prima pagină
@@ -49,7 +43,7 @@
                         </div>
                     </div>
 
-                    <p class="mt-6 text-center font-mono text-[0.65rem] uppercase tracking-[0.16em] text-dim/50">
+                    <p class="mt-6 text-center font-mono text-[0.65rem] uppercase text-dim/50">
                         OLX·Deal Hunter &mdash; urmărim OLX-ul ca tu să nu o faci
                     </p>
                 </div>
@@ -58,7 +52,7 @@
             <!-- ============ FOOTER ============ -->
             <footer class="border-t border-hairline bg-[#06080a]">
                 <div class="max-w-6xl mx-auto px-5 sm:px-8 py-6">
-                    <p class="font-mono text-xs text-dim/50 tracking-wide text-center">&copy; {{ date('Y') }} OLX·Deal Hunter</p>
+                    <p class="font-mono text-xs text-dim/50 text-center">&copy; {{ date('Y') }} OLX·Deal Hunter</p>
                 </div>
             </footer>
         </div>

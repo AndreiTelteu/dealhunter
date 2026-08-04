@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Verifică-ți adresa de email</h1>
+    <h1 class="font-sans font-bold text-2xl">Verifică-ți adresa de email</h1>
     <p class="mt-2 text-sm text-dim leading-relaxed">Ți-am trimis un email cu un link de confirmare. Apasă pe link ca să îți activezi contul. Dacă nu l-ai primit, îți trimitem altul.</p>
 
     @if (session('status') == 'verification-link-sent')

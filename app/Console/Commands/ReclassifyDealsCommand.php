@@ -3,11 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\Deal;
-use App\Models\HuntedDeal;
-use App\Services\IntentClassifierService;
 use App\Services\Crawlers\ParsedListing;
+use App\Services\IntentClassifierService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class ReclassifyDealsCommand extends Command
 {
@@ -38,57 +36,59 @@ class ReclassifyDealsCommand extends Command
         $limit = (int) $this->option('limit');
         $dryRun = $this->option('dry-run');
         $force = $this->option('force');
-        
+
         $this->info('Starting deal reclassification...');
-        
+
         if ($dryRun) {
             $this->warn('DRY RUN MODE - No changes will be made');
         }
-        
+
         // Build query
         $query = Deal::with('huntedDeal');
-        
+
         if ($huntedDealId) {
             $query->where('hunted_deal_id', $huntedDealId);
             $this->line("Filtering to hunted deal ID: {$huntedDealId}");
         }
-        
-        if (!$force) {
+
+        if (! $force) {
             $query->where(function ($q) {
                 $q->whereNull('matches_intent')
-                  ->orWhereNull('likely_working')
-                  ->orWhereNull('confidence');
+                    ->orWhereNull('intent_score')
+                    ->orWhereNull('likely_working')
+                    ->orWhereNull('confidence');
             });
             $this->line('Only processing deals without existing classifications');
         } else {
             $this->line('Processing all deals (force mode)');
         }
-        
+
         $totalDeals = $query->count();
         $this->line("Found {$totalDeals} deals to process");
-        
+
         if ($totalDeals === 0) {
             $this->info('No deals to process');
+
             return 0;
         }
-        
+
         if ($limit > 0 && $totalDeals > $limit) {
             $this->line("Limiting to {$limit} deals");
             $query->limit($limit);
         }
-        
+
         $deals = $query->get();
         $processed = 0;
         $updated = 0;
         $errors = 0;
-        
+
         $progressBar = $this->output->createProgressBar($deals->count());
         $progressBar->start();
-        
+
         foreach ($deals as $deal) {
             try {
                 $processed++;
-                
+
                 // Create ParsedListing from deal data
                 $listing = new ParsedListing(
                     externalId: $deal->external_id,
@@ -103,54 +103,56 @@ class ReclassifyDealsCommand extends Command
                     sellerUrl: $deal->seller_url,
                     postedAt: $deal->posted_at?->toISOString()
                 );
-                
+
                 // Classify the listing
                 $classification = $classifier->classifyListing($deal->huntedDeal->search_term, $listing);
-                
-                if (!$dryRun) {
+
+                if (! $dryRun) {
                     // Update the deal
                     $deal->update([
                         'matches_intent' => $classification->matchesIntent,
+                        'intent_score' => $classification->intentScore,
                         'likely_working' => $classification->likelyWorking,
                         'confidence' => $classification->confidence,
                     ]);
-                    
+
                     // Update latest snapshot if it exists
                     $latestSnapshot = $deal->snapshots()->first();
                     if ($latestSnapshot) {
                         $latestSnapshot->update([
                             'matches_intent' => $classification->matchesIntent,
+                            'intent_score' => $classification->intentScore,
                             'likely_working' => $classification->likelyWorking,
                             'confidence' => $classification->confidence,
                         ]);
                     }
                 }
-                
+
                 $updated++;
-                
+
                 if ($this->output->isVerbose()) {
                     $this->newLine();
                     $this->line("Deal {$deal->id}: {$deal->title}");
-                    $this->line("  Intent: " . ($classification->matchesIntent ? 'Match' : 'No match'));
-                    $this->line("  Working: " . $classification->getWorkingConditionString());
-                    $this->line("  Confidence: " . number_format($classification->confidence, 2));
+                    $this->line('  Intent: '.($classification->matchesIntent ? 'Match' : 'No match').' (score: '.($classification->intentScore ?? '-').')');
+                    $this->line('  Working: '.$classification->getWorkingConditionString());
+                    $this->line('  Confidence: '.number_format($classification->confidence, 2));
                 }
-                
+
             } catch (\Throwable $e) {
                 $errors++;
-                
+
                 if ($this->output->isVerbose()) {
                     $this->newLine();
                     $this->error("Error processing deal {$deal->id}: {$e->getMessage()}");
                 }
             }
-            
+
             $progressBar->advance();
         }
-        
+
         $progressBar->finish();
         $this->newLine(2);
-        
+
         // Summary
         $this->info('Reclassification completed!');
         $this->table(
@@ -161,12 +163,12 @@ class ReclassifyDealsCommand extends Command
                 ['Errors', $errors],
             ]
         );
-        
+
         if ($dryRun) {
             $this->warn('This was a dry run - no changes were made');
             $this->line('Run without --dry-run to apply changes');
         }
-        
+
         return $errors > 0 ? 1 : 0;
     }
 }

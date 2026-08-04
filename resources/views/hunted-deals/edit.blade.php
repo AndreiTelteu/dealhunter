@@ -1,175 +1,134 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ __('Edit Hunted Deal') }}
-            </h2>
-            <div class="flex space-x-3">
-                <a href="{{ route('hunted-deals.show', $huntedDeal) }}" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    {{ __('View Details') }}
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+                <p class="placard text-[0.6rem] mb-1.5">Editează căutarea</p>
+                <h2 class="font-sans font-bold text-xl sm:text-2xl text-[#eaf4f6] leading-tight break-words">
+                    {{ $huntedDeal->search_term }}
+                </h2>
+            </div>
+            <div class="flex shrink-0 flex-wrap items-center gap-2.5">
+                <a href="{{ route('hunted-deals.index') }}" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">
+                    &larr; Toate căutările
                 </a>
-                <a href="{{ route('hunted-deals.index') }}" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    {{ __('Back to List') }}
+                <a href="{{ route('hunted-deals.show', $huntedDeal) }}" class="beamkey beamkey-armed focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">
+                    Detalii
                 </a>
             </div>
         </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6">
-                    <form method="POST" action="{{ route('hunted-deals.update', $huntedDeal) }}" class="space-y-6">
-                        @csrf
-                        @method('PUT')
-                        
-                        <!-- Search Term -->
-                        <div>
-                            <label for="search_term" class="block text-sm font-medium text-gray-700 mb-2">
-                                Search Term <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" 
-                                   name="search_term" 
-                                   id="search_term"
-                                   value="{{ old('search_term', $huntedDeal->search_term) }}"
-                                   required
-                                   placeholder="e.g., iPhone 13, laptop gaming, apartament 2 camere"
-                                   class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('search_term') border-red-300 @enderror">
-                            @error('search_term')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                            <p class="mt-1 text-sm text-gray-500">
-                                This is the search term that will be used to find deals on OLX Romania. Be specific for better results.
-                            </p>
-                        </div>
+    <div class="py-8 sm:py-10">
+        <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
 
-                        <!-- Active Status -->
-                        <div>
-                            <div class="flex items-center">
-                                <input type="checkbox" 
-                                       name="is_active" 
-                                       id="is_active"
-                                       value="1"
-                                       {{ old('is_active', $huntedDeal->is_active) ? 'checked' : '' }}
-                                       class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <label for="is_active" class="ml-2 block text-sm text-gray-700">
-                                    Active (enable automatic crawling)
-                                </label>
-                            </div>
-                            @error('is_active')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                            <p class="mt-1 text-sm text-gray-500">
-                                When active, this hunted deal will be included in automatic crawling operations.
-                            </p>
-                        </div>
+            <form method="POST" action="{{ route('hunted-deals.update', $huntedDeal) }}" class="border border-hairline bg-bench px-5 py-6 sm:px-7 sm:py-7 space-y-7">
+                @csrf
+                @method('PUT')
 
-                        <!-- Notes -->
-                        <div>
-                            <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
-                                Notes
-                            </label>
-                            <textarea name="notes" 
-                                      id="notes"
-                                      rows="4"
-                                      placeholder="Optional notes about what you're looking for, price range, specific requirements, etc."
-                                      class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 @error('notes') border-red-300 @enderror">{{ old('notes', $huntedDeal->notes) }}</textarea>
-                            @error('notes')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                            <p class="mt-1 text-sm text-gray-500">
-                                Add any additional information about what you're looking for. This is for your reference only.
-                            </p>
-                        </div>
-
-                        <!-- Form Actions -->
-                        <div class="flex justify-between pt-6 border-t border-gray-200">
-                            <div>
-                                <button type="button" 
-                                        onclick="confirmDelete()"
-                                        class="inline-flex items-center px-4 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                    </svg>
-                                    Delete Hunted Deal
-                                </button>
-                            </div>
-                            
-                            <div class="flex space-x-3">
-                                <a href="{{ route('hunted-deals.show', $huntedDeal) }}" 
-                                   class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-                                    Cancel
-                                </a>
-                                <button type="submit" 
-                                        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                    </svg>
-                                    Update Hunted Deal
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                <!-- Search Term -->
+                <div>
+                    <x-input-label for="search_term" value="Termen căutat *" />
+                    <x-text-input id="search_term" name="search_term" type="text" class="block mt-2 w-full"
+                        :value="old('search_term', $huntedDeal->search_term)" required autofocus
+                        placeholder="ex. iPhone 13, laptop gaming, apartament 2 camere" />
+                    <x-input-error :messages="$errors->get('search_term')" class="mt-2" />
+                    <p class="mt-2 text-sm text-dim" style="max-width:60ch">
+                        Acesta este termenul pe care îl căutăm automat pe OLX România. Cu cât e mai specific, cu atât rezultatele sunt mai bune.
+                    </p>
                 </div>
-            </div>
 
-            <!-- Metadata Section -->
-            <div class="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Hunted Deal Information</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <span class="font-medium text-gray-700">Created:</span>
-                        <span class="text-gray-600">{{ $huntedDeal->created_at->format('M j, Y \a\t g:i A') }}</span>
+                <!-- Active Status -->
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <input id="is_active" name="is_active" type="checkbox" value="1"
+                            @checked(old('is_active', $huntedDeal->is_active))
+                            class="rounded-sm border-hairline bg-[#06080a] text-[#59e3ff] shadow-none focus:border-[#59e3ff]/60 focus:ring-2 focus:ring-[#59e3ff]/30">
+                        <label for="is_active" class="font-mono text-[0.7rem] uppercase text-[#eaf4f6]">
+                            Activă (pornește verificarea automată)
+                        </label>
                     </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Last Updated:</span>
-                        <span class="text-gray-600">{{ $huntedDeal->updated_at->format('M j, Y \a\t g:i A') }}</span>
-                    </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Last Crawled:</span>
-                        <span class="text-gray-600">
-                            @if($huntedDeal->last_crawled_at)
-                                {{ $huntedDeal->last_crawled_at->format('M j, Y \a\t g:i A') }}
-                            @else
-                                Never
-                            @endif
-                        </span>
-                    </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Total Deals Found:</span>
-                        <span class="text-gray-600">{{ $huntedDeal->deals()->count() }}</span>
+                    <x-input-error :messages="$errors->get('is_active')" class="mt-2" />
+                    <p class="mt-2 text-sm text-dim" style="max-width:60ch">
+                        Când e activă, căutarea este inclusă în verificările automate de anunțuri.
+                    </p>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <x-input-label for="notes" value="Notițe" />
+                    <textarea id="notes" name="notes" rows="4"
+                        placeholder="Opțional: ce cauți exact, buget, cerințe specifice…"
+                        class="block mt-2 w-full rounded-sm border-hairline bg-[#06080a] text-[#eaf4f6] placeholder:text-[#8fa8b0]/50 shadow-none focus:border-[#59e3ff]/60 focus:ring-2 focus:ring-[#59e3ff]/30">{{ old('notes', $huntedDeal->notes) }}</textarea>
+                    <x-input-error :messages="$errors->get('notes')" class="mt-2" />
+                    <p class="mt-2 text-sm text-dim" style="max-width:60ch">
+                        Doar pentru referința ta — nu influențează căutarea.
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-hairline">
+                    <x-danger-button type="button" onclick="confirmDelete()">
+                        Șterge căutarea
+                    </x-danger-button>
+                    <div class="flex items-center gap-2.5">
+                        <a href="{{ route('hunted-deals.show', $huntedDeal) }}" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">
+                            Anulează
+                        </a>
+                        <x-primary-button class="text-[0.65rem]">
+                            Salvează modificările
+                        </x-primary-button>
                     </div>
                 </div>
+            </form>
+
+            <!-- Metadata -->
+            <div class="mt-6 border border-hairline bg-bench px-5 py-5">
+                <h3 class="placard text-[0.65rem] mb-4">Informații căutare</h3>
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                    <div>
+                        <dt class="placard text-[0.58rem]">Creată</dt>
+                        <dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums text-[#eaf4f6]">{{ $huntedDeal->created_at->format('d M Y, H:i') }}</dd>
+                    </div>
+                    <div>
+                        <dt class="placard text-[0.58rem]">Actualizată</dt>
+                        <dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums text-[#eaf4f6]">{{ $huntedDeal->updated_at->format('d M Y, H:i') }}</dd>
+                    </div>
+                    <div>
+                        <dt class="placard text-[0.58rem]">Ultima verificare</dt>
+                        <dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums {{ $huntedDeal->last_crawled_at ? 'text-[#eaf4f6]' : 'text-em-amber' }}">
+                            {{ $huntedDeal->last_crawled_at ? $huntedDeal->last_crawled_at->format('d M Y, H:i') : 'Neverificată' }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="placard text-[0.58rem]">Anunțuri găsite</dt>
+                        <dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums text-[#eaf4f6]">{{ $huntedDeal->deals()->count() }}</dd>
+                    </div>
+                </dl>
             </div>
+
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div class="mt-3 text-center">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mt-4">Delete Hunted Deal</h3>
-                <div class="mt-2 px-7 py-3">
-                    <p class="text-sm text-gray-500">
-                        Are you sure you want to delete "{{ $huntedDeal->search_term }}"? This will also delete all associated deals and snapshots. This action cannot be undone.
-                    </p>
-                </div>
-                <div class="items-center px-4 py-3">
-                    <form method="POST" action="{{ route('hunted-deals.destroy', $huntedDeal) }}" class="inline">
+    <!-- ============ DELETE CONFIRMATION MODAL ============ -->
+    <div id="deleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-[#06080a]/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+        <div class="relative top-20 mx-auto w-[92%] max-w-md border border-hairline bg-bench shadow-[0_20px_50px_-12px_rgba(0,0,0,0.9)]">
+            <span class="block h-[2px] w-full bg-[#ff5d5d] spec-line text-[#ff5d5d]" aria-hidden="true"></span>
+            <div class="px-6 py-6">
+                <h3 id="delete-title" class="font-sans font-bold text-lg text-[#eaf4f6]">Șterge căutarea</h3>
+                <p class="mt-3 text-sm text-dim" style="max-width:56ch">
+                    Sigur vrei să ștergi „{{ $huntedDeal->search_term }}"? Se șterg și toate anunțurile și instantaneele asociate. Acțiunea nu poate fi anulată.
+                </p>
+                <div class="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+                    <button type="button" onclick="closeDeleteModal()" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">
+                        Anulează
+                    </button>
+                    <form method="POST" action="{{ route('hunted-deals.destroy', $huntedDeal) }}">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-700 transition-colors">
-                            Delete
-                        </button>
+                        <x-danger-button type="submit">
+                            Șterge definitiv
+                        </x-danger-button>
                     </form>
-                    <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 hover:bg-gray-400 transition-colors">
-                        Cancel
-                    </button>
                 </div>
             </div>
         </div>
@@ -179,14 +138,16 @@
         function confirmDelete() {
             document.getElementById('deleteModal').classList.remove('hidden');
         }
-
         function closeDeleteModal() {
             document.getElementById('deleteModal').classList.add('hidden');
         }
-
-        // Close modal when clicking outside
-        document.getElementById('deleteModal').addEventListener('click', function(e) {
+        document.getElementById('deleteModal').addEventListener('click', function (e) {
             if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
                 closeDeleteModal();
             }
         });

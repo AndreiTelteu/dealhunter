@@ -26,8 +26,8 @@ class AiServiceTest extends TestCase
                 'choices' => [[
                     'message' => [
                         'content' => json_encode([
-                            'matches' => true,
-                            'confidence' => 0.91,
+                            'intent_score' => 91,
+                            'is_target_product' => true,
                             'reasoning' => 'Compatible provider response',
                         ], JSON_THROW_ON_ERROR),
                     ],
@@ -43,7 +43,7 @@ class AiServiceTest extends TestCase
         ));
 
         $this->assertTrue($result['matches']);
-        $this->assertSame(0.91, $result['confidence']);
+        $this->assertSame(91, $result['intent_score']);
         Http::assertSent(function (Request $request): bool {
             return $request->url() === 'https://compatible.example/v1/chat/completions'
                 && $request->hasHeader('Authorization', 'Bearer test-key')

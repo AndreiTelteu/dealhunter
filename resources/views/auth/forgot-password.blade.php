@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <h1 class="font-sans font-bold text-2xl tracking-tight">Ai uitat parola?</h1>
+    <h1 class="font-sans font-bold text-2xl">Ai uitat parola?</h1>
     <p class="mt-2 text-sm text-dim leading-relaxed">Scrie adresa ta de email și îți trimitem un link cu care îți alegi o parolă nouă.</p>
 
     <!-- Session Status -->

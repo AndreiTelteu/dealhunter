@@ -92,6 +92,17 @@ class IntentClassifierService extends BaseService
         'vanzare' => ['vanzare', 'devanzare', 'cumparare'],
     ];
 
+    /**
+     * Accessory keywords: when present alongside the search term, the listing
+     * is likely a peripheral item (cable, case, charger) rather than the
+     * target product itself.
+     */
+    private const ACCESSORY_KEYWORDS = [
+        'cablu', 'cabluri', 'husa', 'huse', 'incarcator', 'alimentator', 'alimentare',
+        'adaptor', 'adaptoare', 'suport', 'stand', 'toc', 'folie', 'telecomanda',
+        'maner', 'capac', 'rama', 'bateria', 'acumulator', 'casti cu', 'bratara',
+    ];
+
     /** @var list<string> */
     private const INTENT_STOP_WORDS = [
         'si', 'sau', 'cu', 'de', 'la', 'in', 'pe', 'din', 'pentru', 'the', 'and', 'for', 'new', 'nou', 'noua',
@@ -134,31 +145,24 @@ class IntentClassifierService extends BaseService
         try {
             $aiResult = $this->aiService->comprehensiveClassification($searchTerm, $listing);
 
-            // Combine AI results with keyword analysis for better accuracy
-            $keywordResult = $this->classifyWithKeywords($searchTerm, $listing);
+            $intentScore = $aiResult['intent_score'];
+            $matchesIntent = $aiResult['matches_intent'];
+            $keywordWorking = $this->assessWorkingCondition($listing->description ?? '');
+            $likelyWorking = $aiResult['likely_working'] ?? $keywordWorking;
 
-            $matchesIntent = $keywordResult->matchesIntent || $aiResult['matches_intent'];
-            $likelyWorking = $aiResult['likely_working'] ?? $keywordResult->likelyWorking;
-
-            // Use AI results but boost confidence if keyword analysis agrees
             $finalConfidence = $aiResult['confidence'];
-            if ($aiResult['matches_intent'] === $keywordResult->matchesIntent) {
-                $finalConfidence = min(1.0, $finalConfidence + 0.1);
-            }
-            if ($aiResult['likely_working'] === $keywordResult->likelyWorking) {
+            if ($aiResult['likely_working'] === $keywordWorking) {
                 $finalConfidence = min(1.0, $finalConfidence + 0.1);
             }
 
             $this->logDebug('AI classification completed', [
                 'search_term' => $searchTerm,
                 'title' => $listing->title,
-                'ai_intent' => $aiResult['matches_intent'],
+                'intent_score' => $intentScore,
                 'final_intent' => $matchesIntent,
                 'ai_working' => $aiResult['likely_working'],
                 'final_working' => $likelyWorking,
                 'ai_confidence' => $aiResult['confidence'],
-                'keyword_intent' => $keywordResult->matchesIntent,
-                'keyword_working' => $keywordResult->likelyWorking,
                 'final_confidence' => $finalConfidence,
             ]);
 
@@ -166,7 +170,8 @@ class IntentClassifierService extends BaseService
                 matchesIntent: $matchesIntent,
                 likelyWorking: $likelyWorking,
                 confidence: $finalConfidence,
-                reasoning: $aiResult['reasoning']
+                reasoning: $aiResult['reasoning'],
+                intentScore: $intentScore,
             );
 
         } catch (\Throwable $e) {
@@ -185,7 +190,8 @@ class IntentClassifierService extends BaseService
      */
     private function classifyWithKeywords(string $searchTerm, ParsedListing $listing): Classification
     {
-        $intentMatch = $this->matchesIntent($searchTerm, $listing->title, $listing->description ?? '');
+        $intentScore = $this->keywordIntentScore($searchTerm, $listing->title, $listing->description ?? '');
+        $intentMatch = $intentScore >= (int) config('ai.intent_score_threshold', 60);
         $workingCondition = $this->assessWorkingCondition($listing->description ?? '');
         $confidence = $this->calculateConfidence([
             'intent_match' => $intentMatch,
@@ -197,6 +203,7 @@ class IntentClassifierService extends BaseService
         $this->logDebug('Keyword classification completed', [
             'search_term' => $searchTerm,
             'title' => $listing->title,
+            'intent_score' => $intentScore,
             'intent_match' => $intentMatch,
             'working_condition' => $workingCondition,
             'confidence' => $confidence,
@@ -206,41 +213,63 @@ class IntentClassifierService extends BaseService
             matchesIntent: $intentMatch,
             likelyWorking: $workingCondition,
             confidence: $confidence,
-            reasoning: $this->generateReasoning($intentMatch, $workingCondition, $searchTerm, $listing)
+            reasoning: $this->generateReasoning($intentMatch, $workingCondition, $searchTerm, $listing),
+            intentScore: $intentScore,
         );
     }
 
     /**
-     * Check if listing matches search intent
+     * Heuristic intent score (0-100) based on keyword matching.
+     *
+     * Exact title match scores 100. Synonym-normalized term overlap is
+     * scaled to at most 80. Description-only matches are capped lower so
+     * accessories merely mentioned in text do not pass the threshold.
      */
-    private function matchesIntent(string $searchTerm, string $title, string $description): bool
+    private function keywordIntentScore(string $searchTerm, string $title, string $description): int
     {
         $normalizedSearchTerm = $this->normalizeIntentText($searchTerm);
         $normalizedTitle = $this->normalizeIntentText($title);
         $normalizedDescription = $this->normalizeIntentText($description);
 
         if ($normalizedSearchTerm === '') {
-            return false;
+            return 0;
         }
 
         if (str_contains($normalizedTitle, $normalizedSearchTerm)) {
-            return true;
+            return $this->titleMentionsAccessory($normalizedTitle) ? 30 : 100;
         }
 
         $intentTerms = $this->intentTerms($normalizedSearchTerm);
         if ($intentTerms === []) {
-            return false;
+            return 0;
         }
 
-        if ($this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedTitle)) >= 0.6) {
-            return true;
+        $titleRatio = $this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedTitle));
+        if ($titleRatio > 0) {
+            return (int) round(min(1.0, $titleRatio) * 80);
         }
 
         if (str_contains($normalizedDescription, $normalizedSearchTerm)) {
-            return true;
+            return 45;
         }
 
-        return $this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedDescription)) >= 0.8;
+        $descriptionRatio = $this->intentMatchRatio($intentTerms, $this->intentTerms($normalizedDescription));
+        if ($descriptionRatio >= 0.8) {
+            return 40;
+        }
+
+        return (int) round($descriptionRatio * 30);
+    }
+
+    private function titleMentionsAccessory(string $normalizedTitle): bool
+    {
+        foreach (self::ACCESSORY_KEYWORDS as $accessory) {
+            if (str_contains($normalizedTitle, $this->normalizeIntentText($accessory))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeIntentText(string $value): string

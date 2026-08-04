@@ -1,316 +1,164 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ __('All Deals') }}
-            </h2>
-            <div class="text-sm text-gray-600">
-                {{ $deals->total() }} {{ Str::plural('deal', $deals->total()) }} found
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="placard mb-1.5 text-[0.6rem]">Registru anunțuri</p>
+                <h2 class="font-sans text-xl font-bold leading-tight text-[#eaf4f6] sm:text-2xl">Anunțuri găsite</h2>
+                <p class="mt-1.5 font-mono text-[0.7rem] tabular-nums text-dim/70">
+                    {{ $deals->total() }} {{ $deals->total() === 1 ? 'anunț' : 'anunțuri' }} în registru
+                </p>
             </div>
+            <a href="{{ route('hunted-deals.index') }}" class="beamkey focus-ring shrink-0 rounded-sm px-4 py-2.5 text-[0.65rem]">
+                Căutările mele
+            </a>
         </div>
     </x-slot>
 
-    <div class="py-6">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <!-- Search and Filters -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                <div class="p-6">
-                    <form method="GET" action="{{ route('deals.index') }}" class="space-y-4">
-                        <!-- Search Bar -->
-                        <div class="flex flex-col sm:flex-row gap-4">
-                            <div class="flex-1">
-                                <label for="search" class="sr-only">Search deals</label>
-                                <input 
-                                    type="text" 
-                                    name="search" 
-                                    id="search"
-                                    value="{{ request('search') }}"
-                                    placeholder="Search by title or description..."
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                >
-                            </div>
-                            <button 
-                                type="submit"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                            >
-                                Search
-                            </button>
+    <div class="py-8 sm:py-10">
+        <div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+            <section aria-label="Filtre anunțuri">
+                <form method="GET" action="{{ route('deals.index') }}" class="border border-hairline bg-bench px-5 py-5">
+                    @if(request('hunted_deal'))
+                        <input type="hidden" name="hunted_deal" value="{{ request('hunted_deal') }}">
+                    @endif
+
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_12rem_9rem]">
+                        <div>
+                            <label for="search" class="placard text-[0.6rem]">Caută în anunțuri</label>
+                            <input id="search" name="search" type="search" value="{{ request('search') }}" placeholder="Titlu sau descriere..."
+                                class="mt-2 block w-full rounded-none border-hairline bg-[#06080a] px-3 py-2.5 text-sm text-[#eaf4f6] placeholder:text-dim/50 focus:border-[#59e3ff]/60 focus:ring-2 focus:ring-[#59e3ff]/30">
                         </div>
-
-                        <!-- Filter Checkboxes -->
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    name="price_drops" 
-                                    value="1"
-                                    {{ request('price_drops') ? 'checked' : '' }}
-                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    onchange="this.form.submit()"
-                                >
-                                <span class="text-sm text-gray-700">
-                                    Price Drops
-                                    <span class="text-gray-500">({{ $filterCounts['price_drops'] }})</span>
-                                </span>
-                            </label>
-
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    name="new_items" 
-                                    value="1"
-                                    {{ request('new_items') ? 'checked' : '' }}
-                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    onchange="this.form.submit()"
-                                >
-                                <span class="text-sm text-gray-700">
-                                    New (24h)
-                                    <span class="text-gray-500">({{ $filterCounts['new_items'] }})</span>
-                                </span>
-                            </label>
-
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    name="matches_intent" 
-                                    value="1"
-                                    {{ request('matches_intent') ? 'checked' : '' }}
-                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    onchange="this.form.submit()"
-                                >
-                                <span class="text-sm text-gray-700">
-                                    Matches Intent
-                                    <span class="text-gray-500">({{ $filterCounts['matches_intent'] }})</span>
-                                </span>
-                            </label>
-
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    name="likely_working" 
-                                    value="1"
-                                    {{ request('likely_working') ? 'checked' : '' }}
-                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    onchange="this.form.submit()"
-                                >
-                                <span class="text-sm text-gray-700">
-                                    Likely Working
-                                    <span class="text-gray-500">({{ $filterCounts['likely_working'] }})</span>
-                                </span>
-                            </label>
+                        <div>
+                            <label for="sort" class="placard text-[0.6rem]">Ordine registru</label>
+                            <select id="sort" name="sort" class="mt-2 block w-full rounded-none border-hairline bg-[#06080a] px-3 py-2.5 text-sm text-[#eaf4f6] shadow-none focus:border-[#59e3ff]/60 focus:ring-2 focus:ring-[#59e3ff]/30">
+                                <option value="last_seen_at" @selected(request('sort', 'last_seen_at') === 'last_seen_at')>Ultima apariție</option>
+                                <option value="created_at" @selected(request('sort') === 'created_at')>Adăugat</option>
+                                <option value="title" @selected(request('sort') === 'title')>Titlu</option>
+                                <option value="price_amount" @selected(request('sort') === 'price_amount')>Preț</option>
+                                <option value="location" @selected(request('sort') === 'location')>Locație</option>
+                            </select>
                         </div>
-
-                        <!-- Hidden inputs to preserve other parameters -->
-                        <input type="hidden" name="sort" value="{{ request('sort', 'last_seen_at') }}">
-                        <input type="hidden" name="direction" value="{{ request('direction', 'desc') }}">
-                    </form>
-                </div>
-            </div>
-
-            <!-- Sorting Controls -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                <div class="p-4 border-b border-gray-200">
-                    <div class="flex flex-wrap items-center gap-4">
-                        <span class="text-sm font-medium text-gray-700">Sort by:</span>
-                        
-                        @php
-                            $sortOptions = [
-                                'last_seen_at' => 'Last Seen',
-                                'created_at' => 'Date Added',
-                                'title' => 'Title',
-                                'price_amount' => 'Price',
-                                'location' => 'Location'
-                            ];
-                            $currentSort = request('sort', 'last_seen_at');
-                            $currentDirection = request('direction', 'desc');
-                        @endphp
-
-                        @foreach($sortOptions as $key => $label)
-                            <a 
-                                href="{{ request()->fullUrlWithQuery(['sort' => $key, 'direction' => ($currentSort === $key && $currentDirection === 'asc') ? 'desc' : 'asc']) }}"
-                                class="flex items-center space-x-1 px-3 py-1 rounded-md text-sm {{ $currentSort === $key ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100' }}"
-                            >
-                                <span>{{ $label }}</span>
-                                @if($currentSort === $key)
-                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        @if($currentDirection === 'asc')
-                                            <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" />
-                                        @else
-                                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                        @endif
-                                    </svg>
-                                @endif
-                            </a>
-                        @endforeach
+                        <div>
+                            <label for="direction" class="placard text-[0.6rem]">Sens</label>
+                            <select id="direction" name="direction" class="mt-2 block w-full rounded-none border-hairline bg-[#06080a] px-3 py-2.5 text-sm text-[#eaf4f6] shadow-none focus:border-[#59e3ff]/60 focus:ring-2 focus:ring-[#59e3ff]/30">
+                                <option value="desc" @selected(request('direction', 'desc') === 'desc')>Descrescător</option>
+                                <option value="asc" @selected(request('direction') === 'asc')>Crescător</option>
+                            </select>
+                        </div>
                     </div>
+
+                    <div class="mt-5 border-t border-hairline pt-4">
+                        <p class="placard mb-3 text-[0.6rem]">Restrânge citirea</p>
+                        <div class="grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                            <label class="flex cursor-pointer items-center justify-between gap-3 border-b border-hairline pb-2.5 font-mono text-[0.7rem] tabular-nums text-dim">
+                                <span class="flex items-center gap-2"><input type="checkbox" name="price_drops" value="1" @checked(request()->boolean('price_drops')) class="rounded-none border-hairline bg-[#06080a] text-[#ff5d5d] focus:ring-[#ff5d5d]/40"> Preț redus</span>
+                                <span class="text-em-red">{{ $filterCounts['price_drops'] }}</span>
+                            </label>
+                            <label class="flex cursor-pointer items-center justify-between gap-3 border-b border-hairline pb-2.5 font-mono text-[0.7rem] tabular-nums text-dim">
+                                <span class="flex items-center gap-2"><input type="checkbox" name="new_items" value="1" @checked(request()->boolean('new_items')) class="rounded-none border-hairline bg-[#06080a] text-[#ffc46b] focus:ring-[#ffc46b]/40"> Noi, 24 h</span>
+                                <span class="text-em-amber">{{ $filterCounts['new_items'] }}</span>
+                            </label>
+                            <label class="flex cursor-pointer items-center justify-between gap-3 border-b border-hairline pb-2.5 font-mono text-[0.7rem] tabular-nums text-dim">
+                                <span class="flex items-center gap-2"><input type="hidden" name="matches_intent" value="0"><input type="checkbox" name="matches_intent" value="1" @checked($matchesIntentFilter) class="rounded-none border-hairline bg-[#06080a] text-[#7dffa8] focus:ring-[#7dffa8]/40"> Doar potriviri</span>
+                                <span class="text-em-green">{{ $filterCounts['matches_intent'] }}</span>
+                            </label>
+                            <label class="flex cursor-pointer items-center justify-between gap-3 border-b border-hairline pb-2.5 font-mono text-[0.7rem] tabular-nums text-dim">
+                                <span class="flex items-center gap-2"><input type="checkbox" name="likely_working" value="1" @checked(request()->boolean('likely_working')) class="rounded-none border-hairline bg-[#06080a] text-[#7dffa8] focus:ring-[#7dffa8]/40"> Funcționale</span>
+                                <span class="text-em-green">{{ $filterCounts['likely_working'] }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap items-center justify-end gap-2.5">
+                        <a href="{{ route('deals.index', request('hunted_deal') ? ['hunted_deal' => request('hunted_deal')] : []) }}" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">Resetează</a>
+                        <button type="submit" class="beamkey beamkey-armed focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">Aplică</button>
+                    </div>
+                </form>
+            </section>
+
+            <section aria-labelledby="deals-ledger-heading">
+                <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <p class="placard text-[0.6rem]">Semnal primit</p>
+                        <h3 id="deals-ledger-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6] sm:text-xl">Lista anunțurilor</h3>
+                    </div>
+                    @if(request('hunted_deal'))
+                        <span class="font-mono text-[0.65rem] tabular-nums text-dim/70">filtrat după căutare</span>
+                    @endif
                 </div>
-            </div>
 
-            <!-- Deals List -->
-            @if($deals->count() > 0)
-                <div class="space-y-4">
-                    @foreach($deals as $deal)
-                        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg hover:shadow-md transition-shadow">
-                            <div class="p-6">
-                                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                                    <!-- Deal Info -->
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-start justify-between mb-2">
-                                            <h3 class="text-lg font-semibold text-gray-900 truncate pr-4">
-                                                <a 
-                                                    href="{{ route('deals.show', $deal) }}" 
-                                                    class="hover:text-blue-600 transition-colors"
-                                                >
-                                                    {{ $deal->title }}
-                                                </a>
-                                            </h3>
-                                            
-                                            <!-- Status Indicators -->
-                                            <div class="flex flex-wrap gap-1">
-                                                @if($deal->created_at >= now()->subDay())
-                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                        New
-                                                    </span>
-                                                @endif
-                                                
-                                                @if($deal->matches_intent)
-                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                        Matches Intent
-                                                    </span>
-                                                @endif
-                                                
-                                                @if($deal->likely_working)
-                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                        Likely Working
-                                                    </span>
-                                                @endif
-                                                
-                                                @if($deal->snapshots_count > 1)
-                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                                        {{ $deal->snapshots_count }} Changes
-                                                    </span>
-                                                @endif
-                                            </div>
-                                        </div>
-
-                                        <!-- Description Preview -->
-                                        @if($deal->description)
-                                            <p class="text-gray-600 text-sm mb-3">
-                                                {{ Str::limit($deal->description, 150) }}
-                                            </p>
-                                        @endif
-
-                                        <!-- Meta Information -->
-                                        <div class="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                                            @if($deal->location)
-                                                <span class="flex items-center">
-                                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-                                                    </svg>
-                                                    {{ $deal->location }}
-                                                </span>
-                                            @endif
-                                            
-                                            <span class="flex items-center">
-                                                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                                                </svg>
-                                                Last seen {{ $deal->last_seen_at->diffForHumans() }}
-                                            </span>
-                                            
-                                            <span class="flex items-center">
-                                                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd" />
-                                                </svg>
-                                                {{ $deal->huntedDeal->search_term }}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Price and Actions -->
-                                    <div class="flex flex-col items-end space-y-2">
-                                        @if($deal->price_amount)
-                                            <div class="text-right">
-                                                <div class="text-2xl font-bold text-gray-900">
-                                                    {{ number_format($deal->price_amount, 0) }} {{ $deal->price_currency }}
-                                                </div>
-                                                @if($deal->confidence)
-                                                    <div class="text-xs text-gray-500">
-                                                        {{ round($deal->confidence * 100) }}% confidence
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <div class="text-gray-500 text-sm">Price not available</div>
-                                        @endif
-
-                                        <div class="flex space-x-2">
-                                            <a 
-                                                href="{{ route('deals.show', $deal) }}"
-                                                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                            >
-                                                View Details
+                @if($deals->count() > 0)
+                    <div class="border-t border-hairline">
+                        @foreach($deals as $deal)
+                            <article class="group border-b border-hairline py-4 transition-colors hover:bg-bench/60">
+                                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-center lg:gap-8">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                            <x-favorite-button :deal="$deal" />
+                                            <a href="{{ route('deals.show', $deal) }}" class="focus-ring rounded-sm font-sans font-semibold text-[#eaf4f6] transition-colors group-hover:text-beam">
+                                                {{ Str::limit($deal->title, 100) }}
                                             </a>
-                                            
-                                            @if($deal->url)
-                                                <a 
-                                                    href="{{ $deal->url }}" 
-                                                    target="_blank"
-                                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                                >
-                                                    View on OLX
-                                                    <svg class="ml-1 w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </a>
+                                            @if($deal->matches_intent)
+                                                <span class="inline-flex items-center gap-1.5 font-mono text-[0.6rem] uppercase text-em-green"><span class="spec-line h-1 w-1 bg-[#7dffa8]" aria-hidden="true"></span>Potrivit @if($deal->intent_score !== null) {{ $deal->intent_score }}% @endif</span>
                                             @endif
+                                            @if($deal->likely_working)
+                                                <span class="inline-flex items-center gap-1.5 font-mono text-[0.6rem] uppercase text-em-green"><span class="spec-line h-1 w-1 bg-[#7dffa8]" aria-hidden="true"></span>Funcțional</span>
+                                            @endif
+                                            @if($deal->created_at >= now()->subDay())
+                                                <span class="font-mono text-[0.6rem] uppercase text-em-amber">Nou</span>
+                                            @endif
+                                        </div>
+                                        @if($deal->description)
+                                            <p class="mt-1 text-sm text-dim" style="max-width:68ch">{{ Str::limit($deal->description, 150) }}</p>
+                                        @endif
+                                        <p class="mt-2 font-mono text-[0.7rem] tabular-nums text-dim/70">
+                                            @if($deal->location){{ $deal->location }} &middot; @endif
+                                            văzut {{ $deal->last_seen_at?->diffForHumans() ?? 'fără dată' }} &middot;
+                                            {{ $deal->snapshots_count }} {{ $deal->snapshots_count === 1 ? 'instantaneu' : 'instantanee' }} &middot;
+                                            căutare: <a href="{{ route('hunted-deals.show', $deal->huntedDeal) }}" class="text-beam hover:underline">{{ $deal->huntedDeal->search_term }}</a>
+                                        </p>
+                                    </div>
+                                    <div class="flex items-end justify-between gap-5 lg:flex-col lg:items-end lg:gap-3">
+                                        <div class="text-right">
+                                            <p class="placard text-[0.55rem]">Preț curent</p>
+                                            <p class="mt-1 font-mono text-lg font-bold tabular-nums text-[#eaf4f6]">
+                                                @if($deal->latestSnapshot?->price_amount ?? $deal->price_amount)
+                                                    {{ number_format($deal->latestSnapshot?->price_amount ?? $deal->price_amount, 0, ',', '.') }} {{ $deal->latestSnapshot?->price_currency ?? $deal->price_currency }}
+                                                @else
+                                                    <span class="text-sm font-normal text-dim">Fără preț</span>
+                                                @endif
+                                            </p>
+                                        </div>
+                                        <div class="flex shrink-0 items-center gap-4">
+                                            <a href="{{ route('deals.show', $deal) }}" class="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]">Detalii</a>
+                                            @if($deal->url)<a href="{{ $deal->url }}" target="_blank" rel="noopener" class="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]">OLX &#8599;</a>@endif
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
+                            </article>
+                        @endforeach
+                    </div>
 
-                <!-- Pagination -->
-                <div class="mt-6">
-                    {{ $deals->links() }}
-                </div>
-            @else
-                <!-- Empty State -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-12 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        <h3 class="mt-2 text-sm font-medium text-gray-900">No deals found</h3>
-                        <p class="mt-1 text-sm text-gray-500">
+                    @if($deals->hasPages())
+                        <div class="mt-6 border-t border-hairline pt-4 font-mono text-sm text-dim">{{ $deals->links() }}</div>
+                    @endif
+                @else
+                    <div class="relative border border-hairline graticule">
+                        <div class="px-6 py-14 text-center sm:py-16">
+                            <div class="relative mx-auto mb-8 h-16 max-w-md" aria-hidden="true"><div class="absolute inset-x-0 top-1/2 h-px bg-[#1c242a]"></div><div class="beam-core beam-idle absolute left-1/2 top-0 bottom-0 w-[3px]"></div></div>
                             @if(request()->hasAny(['search', 'price_drops', 'new_items', 'matches_intent', 'likely_working']))
-                                Try adjusting your filters or search terms.
+                                <h3 class="font-sans text-lg font-bold text-[#eaf4f6]">Niciun anunț nu corespunde</h3>
+                                <p class="mx-auto mt-2 text-sm text-dim" style="max-width:52ch">Schimbă termenul sau filtrele și încearcă din nou.</p>
+                                <a href="{{ route('deals.index', request('hunted_deal') ? ['hunted_deal' => request('hunted_deal')] : []) }}" class="beamkey focus-ring mt-7 rounded-sm px-6 py-3 text-[0.7rem]">Resetează filtrele</a>
                             @else
-                                Get started by creating a hunted deal to track listings.
-                            @endif
-                        </p>
-                        <div class="mt-6">
-                            @if(request()->hasAny(['search', 'price_drops', 'new_items', 'matches_intent', 'likely_working']))
-                                <a 
-                                    href="{{ route('deals.index') }}"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                >
-                                    Clear Filters
-                                </a>
-                            @else
-                                <a 
-                                    href="{{ route('hunted-deals.create') }}"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                >
-                                    Create Hunted Deal
-                                </a>
+                                <h3 class="font-sans text-lg font-bold text-[#eaf4f6]">Niciun anunț încă</h3>
+                                <p class="mx-auto mt-2 text-sm text-dim" style="max-width:52ch">Adaugă o căutare urmărită. Anunțurile găsite apar aici.</p>
+                                <a href="{{ route('hunted-deals.create') }}" class="beamkey beamkey-armed focus-ring mt-7 rounded-sm px-6 py-3 text-[0.7rem]">+ Căutare nouă</a>
                             @endif
                         </div>
                     </div>
-                </div>
-            @endif
+                @endif
+            </section>
         </div>
     </div>
 </x-app-layout>

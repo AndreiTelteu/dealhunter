@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Register the crawl deals command for scheduling
 Schedule::command('deals:crawl')->hourly()->withoutOverlapping();
+
+// Snapshot average prices of matching, working deals every hour at minute 10
+Schedule::command('deals:snapshot-average-prices')->hourlyAt(10)->withoutOverlapping();

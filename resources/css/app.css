@@ -17,25 +17,42 @@
     }
 
     html {
+        font-size: 17px;
         scroll-behavior: smooth;
     }
 
     body {
         background-color: var(--void);
         color: var(--ink);
+        font-size: 1rem;
+        line-height: 1.6;
     }
 
     ::selection {
         background: var(--beam);
         color: var(--void);
     }
+
+    .uppercase {
+        text-transform: none !important;
+    }
+
+    @media (max-width: 640px) {
+        html {
+            font-size: 16px;
+        }
+    }
+
+    [x-cloak] {
+        display: none !important;
+    }
 }
 
 @layer components {
     /* ---- engraved instrument label ---- */
     .placard {
-        @apply font-mono uppercase;
-        letter-spacing: 0.16em;
+        @apply font-mono;
+        line-height: 1.45;
         color: var(--dim);
     }
 
@@ -71,8 +88,8 @@
 
     /* ---- beam-key switch ---- */
     .beamkey {
-        @apply inline-flex items-center justify-center gap-2 font-mono uppercase;
-        letter-spacing: 0.14em;
+        @apply inline-flex items-center justify-center gap-2 font-mono;
+        line-height: 1.35;
         border: 1px solid var(--hairline);
         background: linear-gradient(180deg, #10171b 0%, #0a0f12 100%);
         color: var(--ink);
@@ -103,6 +120,85 @@
         outline: 2px solid var(--beam);
         outline-offset: 3px;
     }
+
+    .brand-mark__core,
+    .brand-mark__beam {
+        transform-box: fill-box;
+        transform-origin: center;
+    }
+
+    .brand-mark__wordmark {
+        position: relative;
+        display: inline-block;
+    }
+
+    .brand-mark__wordmark::after {
+        position: absolute;
+        right: -14px;
+        bottom: -3px;
+        left: -16px;
+        height: 2px;
+        content: '';
+        background: linear-gradient(90deg, #d8f7ff 0 8%, var(--beam) 8% 78%, #d8f7ff 78% 93%, rgba(89, 227, 255, 0.2) 93% 100%);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.85), 0 0 3px rgba(216, 247, 255, 0.7), 0 0 8px rgba(89, 227, 255, 0.38);
+        filter: drop-shadow(0 0 2px rgba(89, 227, 255, 0.38));
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .brand-mark:hover .brand-mark__wordmark::after,
+    .brand-mark:focus-visible .brand-mark__wordmark::after {
+        transform: scaleX(1);
+    }
+
+    .brand-mark__core {
+        animation: brand-mark-idle 7s ease-in-out 2s infinite;
+    }
+
+    .brand-mark__beam {
+        transform-origin: 50% 100%;
+        animation: brand-mark-idle 7s ease-in-out 2s infinite;
+    }
+
+    .brand-mark:hover .brand-mark__core,
+    .brand-mark:focus-visible .brand-mark__core {
+        animation: brand-mark-core-hover 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .brand-mark:hover .brand-mark__beam,
+    .brand-mark:focus-visible .brand-mark__beam {
+        animation: brand-mark-beam-hover 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ---- instrument rail navigation item ---- */
+    .rail-link {
+        @apply font-mono;
+        line-height: 1.4;
+        color: var(--dim);
+        border-bottom-color: transparent;
+    }
+    .rail-link:hover {
+        color: var(--ink);
+        border-bottom-color: var(--hairline);
+    }
+    .rail-link-active,
+    .rail-link-active:hover {
+        color: var(--beam);
+        border-bottom-color: var(--beam);
+        text-shadow: 0 0 14px rgba(89, 227, 255, 0.45);
+    }
+
+    /* ---- flash message: one emission line, color-coded verdict ---- */
+    .flash-line {
+        @apply flex items-stretch gap-3 border px-4 py-3 text-sm;
+        border-color: var(--hairline);
+        background: var(--bench);
+    }
+    .flash-green { color: var(--em-green); }
+    .flash-red { color: var(--em-red); }
+    .flash-beam { color: var(--beam); }
+    .flash-amber { color: var(--em-amber); }
 }
 
 @layer utilities {
@@ -138,6 +234,29 @@
     4% { opacity: 1; }
     96% { opacity: 1; }
     100% { left: 58%; opacity: 1; }
+}
+
+@keyframes brand-mark-idle {
+    0%, 92%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    96% {
+        opacity: 0.72;
+        transform: scale(0.92);
+    }
+}
+
+@keyframes brand-mark-core-hover {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.28); }
+    100% { transform: scale(1.08); }
+}
+
+@keyframes brand-mark-beam-hover {
+    0% { opacity: 0.75; transform: scaleY(0.5); }
+    45% { opacity: 1; transform: scaleY(1.18); }
+    100% { opacity: 1; transform: scaleY(1); }
 }
 .beam-travel {
     animation: beam-travel 3.6s cubic-bezier(0.45, 0, 0.35, 1) 0.5s both,
@@ -189,6 +308,13 @@
     .alert-live,
     .trace-live {
         animation: none;
+    }
+    .brand-mark__core,
+    .brand-mark__beam {
+        animation: none;
+    }
+    .brand-mark__wordmark::after {
+        transition: none;
     }
     .beam-travel {
         left: 58%;

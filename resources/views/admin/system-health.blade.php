@@ -1,181 +1,34 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ __('System Health Monitoring') }}
-            </h2>
-            <div class="flex space-x-2">
-                <form action="{{ route('admin.run-health-check') }}" method="POST" class="inline">
-                    @csrf
-                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
-                        Run Health Check
-                    </button>
-                </form>
-                <a href="{{ route('admin.dashboard') }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm">
-                    Back to Dashboard
-                </a>
-            </div>
-        </div>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            
-            <!-- Overall Health Status -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold">Overall System Health</h3>
-                        <span class="px-4 py-2 text-sm font-medium rounded-full 
-                            @if($overallHealth['overall_status'] === 'healthy') bg-green-100 text-green-800
-                            @elseif($overallHealth['overall_status'] === 'warning') bg-yellow-100 text-yellow-800
-                            @elseif($overallHealth['overall_status'] === 'critical') bg-red-100 text-red-800
-                            @else bg-gray-100 text-gray-800
-                            @endif">
-                            {{ ucfirst($overallHealth['overall_status']) }}
-                        </span>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                        <div class="bg-green-50 p-3 rounded-lg">
-                            <div class="text-2xl font-bold text-green-600">{{ $overallHealth['summary']['healthy'] }}</div>
-                            <div class="text-sm text-green-700">Healthy</div>
-                        </div>
-                        <div class="bg-yellow-50 p-3 rounded-lg">
-                            <div class="text-2xl font-bold text-yellow-600">{{ $overallHealth['summary']['warning'] }}</div>
-                            <div class="text-sm text-yellow-700">Warning</div>
-                        </div>
-                        <div class="bg-red-50 p-3 rounded-lg">
-                            <div class="text-2xl font-bold text-red-600">{{ $overallHealth['summary']['critical'] }}</div>
-                            <div class="text-sm text-red-700">Critical</div>
-                        </div>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <div class="text-2xl font-bold text-gray-600">{{ $overallHealth['summary']['unknown'] }}</div>
-                            <div class="text-sm text-gray-700">Unknown</div>
-                        </div>
-                    </div>
-                    
-                    <p class="text-sm text-gray-600 mt-4">
-                        Last check: {{ $overallHealth['last_check'] ? $overallHealth['last_check']->diffForHumans() : 'Never' }}
-                    </p>
+    <x-slot name="header"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="placard mb-1.5 text-[0.6rem]">Administrare</p><h2 class="font-sans text-xl font-bold text-[#eaf4f6] sm:text-2xl">Stare sistem</h2></div><div class="flex flex-wrap gap-2.5"><form action="{{ route('admin.run-health-check') }}" method="POST">@csrf <button class="beamkey beamkey-armed focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">Rulează verificarea</button></form><a href="{{ route('admin.dashboard') }}" class="beamkey focus-ring rounded-sm px-4 py-2.5 text-[0.65rem]">&larr; Panou administrare</a></div></div></x-slot>
+    <div class="py-8 sm:py-10"><div class="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+        <section class="border border-hairline graticule" aria-labelledby="overall-heading"><div class="flex flex-wrap items-end justify-between gap-4 border-b border-hairline px-5 py-4"><div><p class="placard text-[0.6rem]">Aliniere generală</p><h3 id="overall-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Citire sistem</h3></div><x-admin.partials.status :status="$overallHealth['overall_status']" class="text-[0.7rem]" /></div><div class="grid grid-cols-2 divide-x divide-y divide-hairline lg:grid-cols-4 lg:divide-y-0"><div class="p-5"><p class="placard text-[0.55rem]">În regulă</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-em-green">{{ $overallHealth['summary']['healthy'] }}</p></div><div class="p-5"><p class="placard text-[0.55rem]">Atenție</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-em-amber">{{ $overallHealth['summary']['warning'] }}</p></div><div class="p-5"><p class="placard text-[0.55rem]">Critice</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-em-red">{{ $overallHealth['summary']['critical'] }}</p></div><div class="p-5"><p class="placard text-[0.55rem]">Necunoscute</p><p class="mt-2 font-mono text-2xl font-bold tabular-nums text-dim">{{ $overallHealth['summary']['unknown'] }}</p></div></div><p class="border-t border-hairline px-5 py-3 font-mono text-[0.65rem] tabular-nums text-dim/70">ultima verificare {{ $overallHealth['last_check'] ? $overallHealth['last_check']->diffForHumans() : 'niciodată' }}</p></section>
+        <section aria-labelledby="components-heading"><div class="mb-4"><p class="placard text-[0.6rem]">Componente</p><h3 id="components-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Citiri individuale</h3></div><div class="border-t border-hairline">@foreach($healthResults as $component => $health)<article class="grid gap-4 border-b border-hairline py-5 lg:grid-cols-[12rem_minmax(0,1fr)_10rem] lg:items-start"><div><p class="font-sans font-semibold capitalize text-[#eaf4f6]">{{ str_replace('_', ' ', $component) }}</p><x-admin.partials.status class="mt-2" :status="$health->status" /></div><div><p class="text-sm text-dim">{{ $health->message }}</p>@if($health->details && count($health->details) > 0)<dl class="mt-3 divide-y divide-hairline border-t border-hairline font-mono text-[0.65rem] tabular-nums">@foreach($health->details as $key => $value)<div class="flex justify-between gap-4 py-2"><dt class="text-dim">{{ ucfirst(str_replace('_', ' ', $key)) }}</dt><dd class="break-all text-right text-[#eaf4f6]">{{ is_array($value) ? json_encode($value) : $value }}</dd></div>@endforeach</dl>@endif</div><dl class="font-mono text-[0.7rem] tabular-nums text-dim lg:text-right"><div><dt class="placard text-[0.55rem]">Timp răspuns</dt><dd class="mt-1 text-[#eaf4f6]">{{ $health->response_time_ms ? $health->response_time_ms.' ms' : 'fără timp' }}</dd></div><div class="mt-3"><dt class="placard text-[0.55rem]">Verificată</dt><dd class="mt-1">{{ $health->checked_at->diffForHumans() }}</dd></div></dl></article>@endforeach</div></section>
+        @if(count($healthHistory) > 0)
+            <section class="border border-hairline graticule" aria-labelledby="history-heading">
+                <div class="border-b border-hairline px-5 py-4">
+                    <p class="placard text-[0.6rem]">Istoric, 24 h</p>
+                    <h3 id="history-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Timp de răspuns</h3>
                 </div>
-            </div>
-
-            <!-- Component Health Details -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                @foreach($healthResults as $component => $health)
-                    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                        <div class="p-6 text-gray-900">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-lg font-semibold capitalize">{{ $component }}</h3>
-                                <span class="px-3 py-1 text-sm font-medium rounded-full 
-                                    @if($health->status === 'healthy') bg-green-100 text-green-800
-                                    @elseif($health->status === 'warning') bg-yellow-100 text-yellow-800
-                                    @elseif($health->status === 'critical') bg-red-100 text-red-800
-                                    @else bg-gray-100 text-gray-800
-                                    @endif">
-                                    {{ ucfirst($health->status) }}
-                                </span>
-                            </div>
-                            
-                            <p class="text-gray-700 mb-3">{{ $health->message }}</p>
-                            
-                            @if($health->response_time_ms)
-                                <div class="text-sm text-gray-600 mb-2">
-                                    Response Time: <span class="font-medium">{{ $health->response_time_ms }}ms</span>
+                <div class="grid divide-y divide-hairline md:grid-cols-2 md:divide-x md:divide-y-0">
+                    @foreach($healthHistory as $component => $checks)
+                        @if($checks->count() > 1)
+                            <div class="p-5">
+                                <p class="font-sans font-semibold capitalize text-[#eaf4f6]">{{ str_replace('_', ' ', $component) }}</p>
+                                <div class="mt-5 flex h-28 items-end gap-1 border-b border-hairline">
+                                    @foreach($checks->take(20)->reverse() as $check)
+                                        @if($check->response_time_ms)
+                                            @php($height = $checks->max('response_time_ms') > 0 ? ($check->response_time_ms / $checks->max('response_time_ms')) * 100 : 0)
+                                            <span class="w-2 {{ $check->status === 'healthy' ? 'bg-[#7dffa8]' : ($check->status === 'warning' ? 'bg-[#ffc46b]' : 'bg-[#ff5d5d]') }}" style="height: {{ max($height, 5) }}%" title="{{ $check->checked_at->format('H:i') }}: {{ $check->response_time_ms }}ms"></span>
+                                        @endif
+                                    @endforeach
                                 </div>
-                            @endif
-                            
-                            <div class="text-xs text-gray-500">
-                                Checked: {{ $health->checked_at->diffForHumans() }}
+                                <p class="mt-2 font-mono text-[0.65rem] tabular-nums text-dim">ultima: {{ $checks->first()->response_time_ms ?? 'fără valoare' }} ms</p>
                             </div>
-                            
-                            @if($health->details && count($health->details) > 0)
-                                <div class="mt-4 p-3 bg-gray-50 rounded-lg">
-                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Details</h4>
-                                    <div class="text-xs text-gray-600 space-y-1">
-                                        @foreach($health->details as $key => $value)
-                                            <div class="flex justify-between">
-                                                <span class="font-medium">{{ ucfirst(str_replace('_', ' ', $key)) }}:</span>
-                                                <span>{{ is_array($value) ? json_encode($value) : $value }}</span>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-
-            <!-- Health History Charts -->
-            @if(count($healthHistory) > 0)
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-semibold mb-4">Health History (Last 24 Hours)</h3>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            @foreach($healthHistory as $component => $checks)
-                                @if($checks->count() > 1)
-                                    <div>
-                                        <h4 class="font-medium text-gray-700 mb-2 capitalize">{{ $component }} Response Times</h4>
-                                        <div class="h-32 bg-gray-50 rounded-lg flex items-end justify-center p-2">
-                                            <div class="flex items-end space-x-1 h-full">
-                                                @foreach($checks->take(20)->reverse() as $check)
-                                                    @if($check->response_time_ms)
-                                                        @php
-                                                            $maxTime = $checks->max('response_time_ms');
-                                                            $height = $maxTime > 0 ? ($check->response_time_ms / $maxTime) * 100 : 0;
-                                                            $color = $check->status === 'healthy' ? 'bg-green-400' : 
-                                                                    ($check->status === 'warning' ? 'bg-yellow-400' : 'bg-red-400');
-                                                        @endphp
-                                                        <div class="w-2 {{ $color }} rounded-t" 
-                                                             style="height: {{ max($height, 5) }}%"
-                                                             title="{{ $check->checked_at->format('H:i') }}: {{ $check->response_time_ms }}ms">
-                                                        </div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                        <div class="text-xs text-gray-500 mt-1 text-center">
-                                            Latest: {{ $checks->first()->response_time_ms ?? 'N/A' }}ms
-                                        </div>
-                                    </div>
-                                @endif
-                            @endforeach
-                        </div>
-                    </div>
+                        @endif
+                    @endforeach
                 </div>
-            @endif
-
-            <!-- Log Cleanup -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <h3 class="text-lg font-semibold mb-4">Log Cleanup</h3>
-                    <form action="{{ route('admin.cleanup-logs') }}" method="POST" class="space-y-4">
-                        @csrf
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="crawl_logs_days" class="block text-sm font-medium text-gray-700">Keep Crawl Logs (Days)</label>
-                                <input type="number" name="crawl_logs_days" id="crawl_logs_days" value="30" min="1" max="365" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <p class="text-xs text-gray-500 mt-1">Crawl logs older than this will be deleted</p>
-                            </div>
-                            <div>
-                                <label for="health_logs_days" class="block text-sm font-medium text-gray-700">Keep Health Logs (Days)</label>
-                                <input type="number" name="health_logs_days" id="health_logs_days" value="7" min="1" max="90" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <p class="text-xs text-gray-500 mt-1">Health check logs older than this will be deleted</p>
-                            </div>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" 
-                                    onclick="return confirm('Are you sure you want to delete old logs? This action cannot be undone.')">
-                                Cleanup Old Logs
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-        </div>
-    </div>
+            </section>
+        @endif
+        <section class="border border-hairline bg-bench" aria-labelledby="cleanup-heading"><div class="border-b border-hairline px-5 py-4"><p class="placard text-[0.6rem]">Întreținere</p><h3 id="cleanup-heading" class="mt-1 font-sans text-lg font-bold text-[#eaf4f6]">Șterge jurnalul vechi</h3></div><form action="{{ route('admin.cleanup-logs') }}" method="POST" class="p-5">@csrf <div class="grid gap-4 md:grid-cols-2"><div><label for="crawl_logs_days" class="placard text-[0.6rem]">Păstrează rulări, zile</label><input type="number" name="crawl_logs_days" id="crawl_logs_days" value="30" min="1" max="365" class="mt-2 block w-full rounded-none border-hairline bg-[#06080a] text-sm text-[#eaf4f6] focus:border-[#59e3ff]/60 focus:ring-[#59e3ff]/30"><p class="mt-1 text-xs text-dim">Rulările mai vechi vor fi șterse.</p></div><div><label for="health_logs_days" class="placard text-[0.6rem]">Păstrează verificări sistem, zile</label><input type="number" name="health_logs_days" id="health_logs_days" value="7" min="1" max="90" class="mt-2 block w-full rounded-none border-hairline bg-[#06080a] text-sm text-[#eaf4f6] focus:border-[#59e3ff]/60 focus:ring-[#59e3ff]/30"><p class="mt-1 text-xs text-dim">Verificările mai vechi vor fi șterse.</p></div></div><div class="mt-5 flex justify-end"><button class="beamkey focus-ring rounded-sm border-[#ff5d5d]/50 px-4 py-2.5 text-[0.65rem] text-em-red" onclick="return confirm('Sigur dorești să ștergi jurnalele vechi? Acțiunea nu poate fi anulată.')">Șterge jurnalele vechi</button></div></form></section>
+    </div></div>
 </x-app-layout>
