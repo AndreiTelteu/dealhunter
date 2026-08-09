@@ -30,10 +30,14 @@ class DatabaseSeeder extends Seeder
             [
                 'search_term' => 'rx 7900 xtx',
                 'is_active' => true,
+                'excluded_phrases' => ["schimb", "pc gaming", "pc intel", "pc amd", "desktop", "pc ai", "configuratie de gaming", "pc ultragaming", "system gaming"],
+                'preferred_phrases' => ["placa video"],
             ],
             [
                 'search_term' => 'rtx 4080',
                 'is_active' => true,
+                'excluded_phrases' => ["schimb", "pc gaming", "pc intel", "pc amd", "desktop", "pc ai", "configuratie de gaming", "pc ultragaming", "system gaming"],
+                'preferred_phrases' => ["placa video"],
             ],
         ];
 
