@@ -61,49 +61,18 @@
             @endif
             @php
                 $hasTrace = $priceSnapshots->count() > 1;
-                if ($hasTrace) {
-                    $prices = $priceSnapshots->pluck('average_price')->map(fn($p) => (float) $p)->values();
-                    $minP = $prices->min();
-                    $maxP = $prices->max();
-                    $rangeP = max($maxP - $minP, 1);
-                    $firstT = $priceSnapshots->first()->captured_at->timestamp;
-                    $lastT = $priceSnapshots->last()->captured_at->timestamp;
-                    $rangeT = max($lastT - $firstT, 1);
-                    $currency = $priceSnapshots->first()->price_currency ?? 'RON';
-                    $sampleCounts = $priceSnapshots->pluck('deals_count');
-                    // Build SVG trace points
-                    $W = 760; $H = 190; $padL = 8; $padR = 8; $padT = 14; $padB = 30;
-                    $innerW = $W - $padL - $padR; $innerH = $H - $padT - $padB;
-                    $points = $priceSnapshots->map(function ($s) use ($padL, $padT, $innerW, $innerH, $minP, $rangeP, $firstT, $rangeT) {
-                        $x = $padL + (($s->captured_at->timestamp - $firstT) / $rangeT) * $innerW;
-                        $y = $padT + (1 - (((float) $s->average_price - $minP) / $rangeP)) * $innerH;
-                        return [round($x, 1), round($y, 1), (float) $s->average_price];
-                    });
-                    $pathD = 'M ' . $points->map(fn($p) => $p[0] . ' ' . $p[1])->implode(' L ');
-                    $firstPrice = $prices->first();
-                    $lastPrice = $prices->last();
-                    $delta = $lastPrice - $firstPrice;
-                    $deltaPct = $firstPrice > 0 ? ($delta / $firstPrice) * 100 : 0;
-                    $dropped = $delta < 0;
-                    $traceColor = $dropped ? '#ff5d5d' : '#59e3ff';
-                    $firstPt = $points->first();
-                    $lastPt = $points->last();
-                    // Y gridlines: min, mid, max
-                    $yFor = function ($val) use ($padT, $innerH, $minP, $rangeP) {
-                        return round($padT + (1 - (($val - $minP) / $rangeP)) * $innerH, 1);
-                    };
-                    $midP = $minP + $rangeP / 2;
-                    $firstDate = $priceSnapshots->first()->captured_at;
-                    $lastDate = $priceSnapshots->last()->captured_at;
-                    $chartSamples = $priceSnapshots->map(fn ($s, $index) => [
-                        'x' => $points[$index][0],
-                        'y' => $points[$index][1],
-                        'price' => number_format((float) $s->average_price, 0, ',', '.'),
-                        'currency' => $currency,
-                        'count' => $s->deals_count,
-                        'captured' => $s->captured_at->format('d M Y, H:i'),
-                    ])->values();
-                }
+                $currency = $priceSnapshots->first()?->price_currency ?? 'RON';
+                $firstDate = $priceSnapshots->first()?->captured_at;
+                $lastDate = $priceSnapshots->last()?->captured_at;
+                $chartSamples = $priceSnapshots->map(fn ($snapshot) => [
+                    'min' => (float) $snapshot->min_price,
+                    'average' => (float) $snapshot->average_price,
+                    'max' => (float) $snapshot->max_price,
+                    'currency' => $snapshot->price_currency ?? $currency,
+                    'count' => $snapshot->deals_count,
+                    'captured' => $snapshot->captured_at->format('d M Y, H:i'),
+                    'timestamp' => $snapshot->captured_at->timestamp,
+                ])->values();
             @endphp
 
             <!-- ============ FULL-PLATE SPECTRUM ============ -->
@@ -114,7 +83,7 @@
                             <h3 id="spectrum-heading" class="font-sans font-bold text-base sm:text-lg text-[#eaf4f6]">Spectrul căutării</h3>
                             <p class="mt-0.5 text-sm text-dim" style="max-width:60ch">
                                 @if($hasTrace)
-                                    Media de preț a anunțurilor potrivite și funcționale, instantaneu cu instantaneu.
+                                    Media, minimul sau maximul de preț al anunțurilor potrivite, instantaneu cu instantaneu.
                                 @else
                                     Cum citește fasciculul această căutare.
                                 @endif
@@ -133,144 +102,109 @@
                             <!-- ===== absorption trace: price history ===== -->
                             <div class="min-w-0">
                                 @if($hasTrace)
-                                    <p class="placard text-[0.6rem] mb-3">Medie de preț &middot; {{ $currency }}</p>
-                                    <div class="relative">
-                                        <div
-                                            class="relative cursor-crosshair"
-                                            x-data="{
-                                                samples: {{ Js::from($chartSamples) }},
-                                                chartWidth: {{ $W }},
-                                                chartHeight: {{ $H }},
-                                                padTop: {{ $padT }},
-                                                padBottom: {{ $padB }},
-                                                active: null,
-                                                mouse: { x: 0, y: 0 },
-                                                popWidth: 230,
-                                                scan(event) {
-                                                    const rect = event.currentTarget.getBoundingClientRect();
-                                                    const px = (event.clientX - rect.left) * (this.chartWidth / rect.width);
-                                                    let best = this.samples[0];
-                                                    for (const sample of this.samples) {
-                                                        if (Math.abs(sample.x - px) < Math.abs(best.x - px)) {
-                                                            best = sample;
-                                                        }
-                                                    }
-                                                    this.active = best;
-                                                    this.mouse.x = event.clientX - rect.left;
-                                                    this.mouse.y = event.clientY - rect.top;
-                                                },
-                                                park() {
-                                                    this.active = null;
-                                                },
-                                                popLeft() {
-                                                    const rect = this.$el.getBoundingClientRect();
-                                                    if (this.mouse.x > rect.width * 0.62) {
-                                                        return Math.max(0, this.mouse.x - this.popWidth - 18);
-                                                    }
-                                                    return Math.min(rect.width - this.popWidth, this.mouse.x + 18);
-                                                },
-                                                popTop() {
-                                                    const rect = this.$el.getBoundingClientRect();
-                                                    const y = this.mouse.y - 68;
-                                                    return Math.min(Math.max(4, y), Math.max(4, rect.height - 96));
+                                    <div
+                                        x-data="{
+                                            samples: {{ Js::from($chartSamples) }},
+                                            metric: 'min',
+                                            chartWidth: 760,
+                                            chartHeight: 190,
+                                            padLeft: 8,
+                                            padRight: 8,
+                                            padTop: 14,
+                                            padBottom: 30,
+                                            active: null,
+                                            mouse: { x: 0, y: 0 },
+                                            popWidth: 230,
+                                            labels: { min: 'Preț minim', average: 'Medie de preț', max: 'Preț maxim' },
+                                            values() { return this.samples.map(sample => sample[this.metric]); },
+                                            bounds() {
+                                                const values = this.values();
+                                                const min = Math.min(...values);
+                                                const max = Math.max(...values);
+                                                return { min, max, range: Math.max(max - min, 1) };
+                                            },
+                                            timeRange() {
+                                                const first = this.samples[0].timestamp;
+                                                const last = this.samples[this.samples.length - 1].timestamp;
+                                                return { first, range: Math.max(last - first, 1) };
+                                            },
+                                            xFor(index) {
+                                                const time = this.timeRange();
+                                                return this.padLeft + ((this.samples[index].timestamp - time.first) / time.range) * (this.chartWidth - this.padLeft - this.padRight);
+                                            },
+                                            yFor(value) {
+                                                const bounds = this.bounds();
+                                                return this.padTop + (1 - ((value - bounds.min) / bounds.range)) * (this.chartHeight - this.padTop - this.padBottom);
+                                            },
+                                            points() { return this.samples.map((sample, index) => ({ ...sample, value: sample[this.metric], x: this.xFor(index), y: this.yFor(sample[this.metric]) })); },
+                                            path() { return this.points().map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' '); },
+                                            mid() { const bounds = this.bounds(); return bounds.min + bounds.range / 2; },
+                                            first() { return this.samples[0][this.metric]; },
+                                            last() { return this.samples[this.samples.length - 1][this.metric]; },
+                                            delta() { return this.last() - this.first(); },
+                                            deltaPct() { return this.first() > 0 ? (this.delta() / this.first()) * 100 : 0; },
+                                            color() { return this.delta() < 0 ? '#ff5d5d' : '#59e3ff'; },
+                                            format(value) { return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 0 }).format(value); },
+                                            select(metric) { this.metric = metric; this.active = null; },
+                                            scan(event) {
+                                                const rect = event.currentTarget.getBoundingClientRect();
+                                                const px = (event.clientX - rect.left) * (this.chartWidth / rect.width);
+                                                let best = this.points()[0];
+                                                for (const point of this.points()) {
+                                                    if (Math.abs(point.x - px) < Math.abs(best.x - px)) best = point;
                                                 }
-                                            }"
-                                            @mousemove="scan($event)"
-                                            @mouseleave="park()"
-                                        >
-                                        <svg viewBox="0 0 {{ $W }} {{ $H }}" class="block w-full h-auto" role="img"
-                                             aria-label="Evoluția mediei de preț: de la {{ number_format($firstPrice, 0, ',', '.') }} la {{ number_format($lastPrice, 0, ',', '.') }} {{ $currency }} ({{ $dropped ? 'scădere' : 'creștere' }} de {{ number_format(abs($deltaPct), 1, ',', '.') }}%).">
-                                            <!-- horizontal graticule lines: min / mid / max -->
-                                            <line x1="{{ $padL }}" y1="{{ $yFor($maxP) }}" x2="{{ $W - $padR }}" y2="{{ $yFor($maxP) }}" stroke="#1c242a" stroke-width="1"/>
-                                            <line x1="{{ $padL }}" y1="{{ $yFor($midP) }}" x2="{{ $W - $padR }}" y2="{{ $yFor($midP) }}" stroke="#1c242a" stroke-width="1" stroke-dasharray="3 4"/>
-                                            <line x1="{{ $padL }}" y1="{{ $yFor($minP) }}" x2="{{ $W - $padR }}" y2="{{ $yFor($minP) }}" stroke="#1c242a" stroke-width="1"/>
-
-                                            <!-- the absorption trace -->
-                                            <path d="{{ $pathD }}" fill="none" stroke="{{ $traceColor }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"
-                                                  style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.7)) drop-shadow(0 0 6px {{ $traceColor }});"/>
-
-                                            <!-- start / end capture points -->
-                                            <circle cx="{{ $firstPt[0] }}" cy="{{ $firstPt[1] }}" r="2.6" fill="#06080a" stroke="{{ $traceColor }}" stroke-width="1.4"/>
-                                            <circle cx="{{ $lastPt[0] }}" cy="{{ $lastPt[1] }}" r="3" fill="{{ $traceColor }}" style="filter: drop-shadow(0 0 5px {{ $traceColor }});"/>
-
-                                            <!-- live scan cursor -->
-                                            <template x-if="active">
-                                                <g aria-hidden="true">
-                                                    <line :x1="active.x" :y1="padTop" :x2="active.x" :y2="chartHeight - padBottom" stroke="#8fa8b0" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="2 3"/>
-                                                    <circle :cx="active.x" :cy="active.y" r="3.6" fill="#06080a" stroke="{{ $traceColor }}" stroke-width="1.6" style="filter: drop-shadow(0 0 5px {{ $traceColor }});"/>
-                                                </g>
-                                            </template>
-                                        </svg>
-
-                                        <!-- engraved readout popover -->
-                                        <div
-                                            x-show="active"
-                                            x-cloak
-                                            x-transition.opacity.duration.150ms
-                                            class="pointer-events-none absolute z-10 border border-hairline bg-[#06080a] px-3.5 py-2.5"
-                                            :style="`left: ${popLeft()}px; top: ${popTop()}px; width: ${popWidth}px; box-shadow: 0 10px 24px rgba(0,0,0,.6), inset 0 0 0 1px rgba(89,227,255,.08);`"
-                                        >
-                                            <template x-if="active">
-                                                <div>
-                                                    <p class="placard text-[0.55rem]">Medie instantanee</p>
-                                                    <p class="mt-1.5 font-mono text-base font-bold tabular-nums" style="color: {{ $traceColor }}; text-shadow: 0 2px 6px rgba(0,0,0,.7), 0 0 12px {{ $traceColor }}40;">
-                                                        <span x-text="active.price"></span> <span class="text-[0.65rem] font-normal text-dim" x-text="active.currency"></span>
-                                                    </p>
-                                                    <p class="mt-1 font-mono text-[0.62rem] tabular-nums text-dim/80"><span x-text="active.captured"></span> &middot; <span x-text="active.count"></span> anunțuri</p>
-                                                </div>
-                                            </template>
+                                                this.active = best;
+                                                this.mouse.x = event.clientX - rect.left;
+                                                this.mouse.y = event.clientY - rect.top;
+                                            },
+                                            park() { this.active = null; },
+                                            popLeft() { const rect = this.$el.getBoundingClientRect(); return this.mouse.x > rect.width * .62 ? Math.max(0, this.mouse.x - this.popWidth - 18) : Math.min(rect.width - this.popWidth, this.mouse.x + 18); },
+                                            popTop() { const rect = this.$el.getBoundingClientRect(); return Math.min(Math.max(4, this.mouse.y - 68), Math.max(4, rect.height - 96)); }
+                                        }"
+                                    >
+                                        <div class="mb-3 flex flex-wrap items-center gap-1.5 font-mono text-[0.6rem] tabular-nums" role="tablist" aria-label="Valoarea afișată în grafic">
+                                            <button type="button" role="tab" :aria-selected="metric === 'min'" @click="select('min')" :class="metric === 'min' ? 'border-[#59e3ff]/70 bg-[#59e3ff]/10 text-beam' : 'border-hairline text-dim hover:text-[#eaf4f6]'" class="focus-ring rounded-sm border px-2.5 py-1.5">Preț minim</button>
+                                            <button type="button" role="tab" :aria-selected="metric === 'average'" @click="select('average')" :class="metric === 'average' ? 'border-[#59e3ff]/70 bg-[#59e3ff]/10 text-beam' : 'border-hairline text-dim hover:text-[#eaf4f6]'" class="focus-ring rounded-sm border px-2.5 py-1.5">Medie de preț</button>
+                                            <button type="button" role="tab" :aria-selected="metric === 'max'" @click="select('max')" :class="metric === 'max' ? 'border-[#59e3ff]/70 bg-[#59e3ff]/10 text-beam' : 'border-hairline text-dim hover:text-[#eaf4f6]'" class="focus-ring rounded-sm border px-2.5 py-1.5">Preț maxim</button>
+                                            <span class="ml-1 text-dim/70">· {{ $currency }}</span>
                                         </div>
+                                        <div class="relative cursor-crosshair" @mousemove="scan($event)" @mouseleave="park()">
+                                            <svg viewBox="0 0 760 190" class="block w-full h-auto" role="img" :aria-label="`${labels[metric]}: de la ${format(first())} la ${format(last())} {{ $currency }}`">
+                                                <line :x1="padLeft" :y1="yFor(bounds().max)" :x2="chartWidth - padRight" :y2="yFor(bounds().max)" stroke="#1c242a" stroke-width="1"/>
+                                                <line :x1="padLeft" :y1="yFor(mid())" :x2="chartWidth - padRight" :y2="yFor(mid())" stroke="#1c242a" stroke-width="1" stroke-dasharray="3 4"/>
+                                                <line :x1="padLeft" :y1="yFor(bounds().min)" :x2="chartWidth - padRight" :y2="yFor(bounds().min)" stroke="#1c242a" stroke-width="1"/>
+                                                <path :d="path()" fill="none" :stroke="color()" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" :style="`filter: drop-shadow(0 2px 3px rgba(0,0,0,.7)) drop-shadow(0 0 6px ${color()});`"/>
+                                                <circle :cx="points()[0].x" :cy="points()[0].y" r="2.6" fill="#06080a" :stroke="color()" stroke-width="1.4"/>
+                                                <circle :cx="points()[points().length - 1].x" :cy="points()[points().length - 1].y" r="3" :fill="color()" :style="`filter: drop-shadow(0 0 5px ${color()});`"/>
+                                                <template x-if="active"><g aria-hidden="true"><line :x1="active.x" :y1="padTop" :x2="active.x" :y2="chartHeight - padBottom" stroke="#8fa8b0" stroke-opacity=".45" stroke-width="1" stroke-dasharray="2 3"/><circle :cx="active.x" :cy="active.y" r="3.6" fill="#06080a" :stroke="color()" stroke-width="1.6" :style="`filter: drop-shadow(0 0 5px ${color()});`"/></g></template>
+                                            </svg>
+                                            <div x-show="active" x-cloak x-transition.opacity.duration.150ms class="pointer-events-none absolute z-10 border border-hairline bg-[#06080a] px-3.5 py-2.5" :style="`left: ${popLeft()}px; top: ${popTop()}px; width: ${popWidth}px; box-shadow: 0 10px 24px rgba(0,0,0,.6), inset 0 0 0 1px rgba(89,227,255,.08);`">
+                                                <template x-if="active"><div><p class="placard text-[0.55rem]" x-text="labels[metric]"></p><p class="mt-1.5 font-mono text-base font-bold tabular-nums" :style="`color: ${color()}; text-shadow: 0 2px 6px rgba(0,0,0,.7), 0 0 12px ${color()}40;`"><span x-text="format(active.value)"></span> <span class="text-[0.65rem] font-normal text-dim" x-text="active.currency"></span></p><p class="mt-1 font-mono text-[0.62rem] tabular-nums text-dim/80"><span x-text="active.captured"></span> &middot; <span x-text="active.count"></span> anunțuri</p></div></template>
+                                            </div>
                                         </div>
-
-                                        <!-- axis scale: min / mid / max price -->
-                                        <div class="mt-1.5 flex justify-between font-mono text-[0.6rem] tabular-nums text-dim/60">
-                                            <span>{{ number_format($minP, 0, ',', '.') }}</span>
-                                            <span>{{ number_format($midP, 0, ',', '.') }}</span>
-                                            <span>{{ number_format($maxP, 0, ',', '.') }}</span>
-                                        </div>
+                                        <div class="mt-1.5 flex justify-between font-mono text-[0.6rem] tabular-nums text-dim/60"><span x-text="format(bounds().min)"></span><span x-text="format(mid())"></span><span x-text="format(bounds().max)"></span></div>
+                                        <dl class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 border-t border-hairline pt-4">
+                                            <div><dt class="placard text-[0.58rem]">Prima valoare</dt><dd class="mt-1.5 font-mono text-base tabular-nums text-[#eaf4f6]"><span x-text="format(first())"></span> <span class="text-[0.65rem] text-dim/70">{{ $currency }}</span></dd></div>
+                                            <div><dt class="placard text-[0.58rem]">Ultima valoare</dt><dd class="mt-1.5 font-mono text-base tabular-nums text-[#eaf4f6]"><span x-text="format(last())"></span> <span class="text-[0.65rem] text-dim/70">{{ $currency }}</span></dd></div>
+                                            <div><dt class="placard text-[0.58rem]">Variație</dt><dd class="mt-1.5 font-mono text-base tabular-nums" :class="delta() < 0 ? 'text-em-red' : 'text-em-green'"><span x-text="`${delta() > 0 ? '+' : ''}${format(delta())}`"></span></dd></div>
+                                            <div><dt class="placard text-[0.58rem]">Min / Max serie</dt><dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums text-dim leading-snug"><span x-text="format(bounds().min)"></span><br><span x-text="format(bounds().max)"></span></dd></div>
+                                        </dl>
+                                        <p class="mt-3 font-mono text-[0.62rem] tabular-nums text-dim/60">Ultimul instantaneu: <span x-text="labels[metric].toLowerCase()"></span> din <span x-text="samples[samples.length - 1].count"></span> anunțuri potrivite cu preț &middot; {{ $lastDate->format('d M, H:i') }}</p>
                                     </div>
-
-                                    <!-- trace verdict readouts -->
-                                    <dl class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 border-t border-hairline pt-4">
-                                        <div>
-                                            <dt class="placard text-[0.58rem]">Prima medie</dt>
-                                            <dd class="mt-1.5 font-mono text-base tabular-nums text-[#eaf4f6]">{{ number_format($firstPrice, 0, ',', '.') }} <span class="text-[0.65rem] text-dim/70">{{ $currency }}</span></dd>
-                                        </div>
-                                        <div>
-                                            <dt class="placard text-[0.58rem]">Ultima medie</dt>
-                                            <dd class="mt-1.5 font-mono text-base tabular-nums text-[#eaf4f6]">{{ number_format($lastPrice, 0, ',', '.') }} <span class="text-[0.65rem] text-dim/70">{{ $currency }}</span></dd>
-                                        </div>
-                                        <div>
-                                            <dt class="placard text-[0.58rem]">Variație</dt>
-                                            <dd class="mt-1.5 font-mono text-base tabular-nums {{ $dropped ? 'text-em-red' : 'text-em-green' }}">
-                                                {{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 0, ',', '.') }}
-                                            </dd>
-                                        </div>
-                                        <div>
-                                            <dt class="placard text-[0.58rem]">Min / Max medie</dt>
-                                            <dd class="mt-1.5 font-mono text-[0.8rem] tabular-nums text-dim leading-snug">{{ number_format($minP, 0, ',', '.') }}<br>{{ number_format($maxP, 0, ',', '.') }}</dd>
-                                        </div>
-                                    </dl>
-                                    <p class="mt-3 font-mono text-[0.62rem] tabular-nums text-dim/60">
-                                        Ultimul instantaneu: media a {{ $priceSnapshots->last()->deals_count }} anunțuri potrivite și funcționale cu preț &middot; {{ $priceSnapshots->last()->captured_at->format('d M, H:i') }}
-                                    </p>
                                 @elseif($latestPriceSnapshot = $priceSnapshots->last())
-                                    <!-- single aggregate reading: show it before a trace can be drawn -->
+                                    <!-- single aggregate reading: show min, average and max before a trace can be drawn -->
                                     <p class="placard text-[0.6rem] mb-3">Ultimul instantaneu de preț</p>
                                     <div class="relative min-h-28 border border-hairline bg-[#080c0f] px-5 py-4 overflow-hidden">
                                         <div class="absolute inset-x-0 top-1/2 h-px bg-[#1c242a]" aria-hidden="true"></div>
                                         <div class="beam-core beam-idle absolute left-5 top-3 bottom-3 w-[3px]" aria-hidden="true"></div>
                                         <div class="relative ml-7">
-                                            <p class="font-mono text-2xl font-bold tabular-nums text-beam" style="text-shadow: 0 0 16px rgba(89,227,255,.32);">
-                                                {{ number_format((float) $latestPriceSnapshot->average_price, 0, ',', '.') }}
-                                                <span class="text-[0.7rem] font-normal text-dim">{{ $latestPriceSnapshot->price_currency ?? 'RON' }}</span>
-                                            </p>
-                                            <dl class="mt-2.5 grid grid-cols-2 gap-4 font-mono text-[0.65rem] tabular-nums text-dim/80">
-                                                <div><dt class="placard text-[0.52rem]">Minim</dt><dd class="mt-1 text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->min_price, 0, ',', '.') }}</dd></div>
-                                                <div><dt class="placard text-[0.52rem]">Maxim</dt><dd class="mt-1 text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->max_price, 0, ',', '.') }}</dd></div>
+                                            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono tabular-nums">
+                                                <div><dt class="placard text-[0.52rem]">Preț minim</dt><dd class="mt-1 text-lg text-beam">{{ number_format((float) $latestPriceSnapshot->min_price, 0, ',', '.') }} <span class="text-[0.65rem] font-normal text-dim">{{ $latestPriceSnapshot->price_currency ?? 'RON' }}</span></dd></div>
+                                                <div><dt class="placard text-[0.52rem]">Medie de preț</dt><dd class="mt-1 text-lg text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->average_price, 0, ',', '.') }} <span class="text-[0.65rem] font-normal text-dim">{{ $latestPriceSnapshot->price_currency ?? 'RON' }}</span></dd></div>
+                                                <div><dt class="placard text-[0.52rem]">Preț maxim</dt><dd class="mt-1 text-lg text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->max_price, 0, ',', '.') }} <span class="text-[0.65rem] font-normal text-dim">{{ $latestPriceSnapshot->price_currency ?? 'RON' }}</span></dd></div>
                                             </dl>
                                             <p class="mt-3 font-mono text-[0.65rem] tabular-nums text-dim/80">
-                                                {{ $latestPriceSnapshot->captured_at->format('d M Y, H:i') }} &middot; media a {{ $latestPriceSnapshot->deals_count }} anunțuri potrivite
+                                                {{ $latestPriceSnapshot->captured_at->format('d M Y, H:i') }} &middot; {{ $latestPriceSnapshot->deals_count }} anunțuri potrivite cu preț
                                             </p>
                                             <p class="mt-3 text-sm text-dim">
                                                 Acesta este primul reper. Trasarea evoluției apare după următorul instantaneu.

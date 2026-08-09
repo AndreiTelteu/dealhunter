@@ -110,7 +110,13 @@
                                             @endif
                                         </p>
                                     </div>
-                                    <div class="flex shrink-0 items-center gap-4 sm:gap-5">
+                                    <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-5">
+                                        @if($snapshot = $huntedDeal->latestPriceSnapshot)
+                                            <div class="flex items-center gap-3 font-mono text-[0.65rem] tabular-nums whitespace-nowrap">
+                                                <span class="text-dim/70">Min: <span class="text-[#eaf4f6]">{{ number_format((float) $snapshot->min_price, 0, ',', '.') }} {{ $snapshot->price_currency ?? 'RON' }}</span></span>
+                                                <span class="text-dim/70">Medie: <span class="text-beam">{{ number_format((float) $snapshot->average_price, 0, ',', '.') }} {{ $snapshot->price_currency ?? 'RON' }}</span></span>
+                                            </div>
+                                        @endif
                                         <a href="{{ route('hunted-deals.show', $huntedDeal) }}" class="rail-link focus-ring rounded-sm pb-0.5 border-b text-[0.65rem]">Detalii</a>
                                         <a href="{{ route('hunted-deals.edit', $huntedDeal) }}" class="rail-link focus-ring rounded-sm pb-0.5 border-b text-[0.65rem]">Editează</a>
                                     </div>

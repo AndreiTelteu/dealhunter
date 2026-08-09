@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HuntedDeal extends Model
@@ -63,5 +64,13 @@ class HuntedDeal extends Model
     public function priceSnapshots(): HasMany
     {
         return $this->hasMany(HuntedDealPriceSnapshot::class)->orderBy('captured_at');
+    }
+
+    /**
+     * Get the newest aggregate price snapshot for the hunted deal.
+     */
+    public function latestPriceSnapshot(): HasOne
+    {
+        return $this->hasOne(HuntedDealPriceSnapshot::class)->latestOfMany('captured_at');
     }
 }

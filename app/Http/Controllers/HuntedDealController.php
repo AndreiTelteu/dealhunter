@@ -17,7 +17,9 @@ class HuntedDealController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Auth::user()->huntedDeals()->withCount('deals');
+        $query = Auth::user()->huntedDeals()
+            ->withCount('deals')
+            ->with('latestPriceSnapshot');
 
         // Apply filters
         if ($request->filled('filter')) {
