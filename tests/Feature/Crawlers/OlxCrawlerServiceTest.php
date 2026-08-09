@@ -82,4 +82,30 @@ class OlxCrawlerServiceTest extends TestCase
 
         $crawler->extractListings('laptop');
     }
+
+    public function test_it_prefers_olx_schema_sku_and_removes_tracking_parameters_from_the_canonical_url(): void
+    {
+        $crawler = new OlxCrawlerService(app(PriceParserService::class), $this->createMock(PlaywrightMcpClient::class));
+
+        $listing = $crawler->parseListingData([
+            'external_id' => '307467347',
+            'url' => 'https://www.olx.ro/d/oferta/sapphire-radeon-rx-7900-xtx-nitro-vapor-x-24gb-gddr6-384-bit-IDkO6iL.html?search_reason=search%7Corganic',
+            'title' => 'Sapphire Radeon RX 7900 XTX',
+        ]);
+
+        $this->assertSame('307467347', $listing->externalId);
+        $this->assertSame('https://www.olx.ro/d/oferta/sapphire-radeon-rx-7900-xtx-nitro-vapor-x-24gb-gddr6-384-bit-IDkO6iL.html', $listing->url);
+    }
+
+    public function test_it_uses_the_alphanumeric_olx_url_id_when_the_schema_sku_is_unavailable(): void
+    {
+        $crawler = new OlxCrawlerService(app(PriceParserService::class), $this->createMock(PlaywrightMcpClient::class));
+
+        $listing = $crawler->parseListingData([
+            'url' => 'https://www.olx.ro/d/oferta/sapphire-radeon-rx-7900-xtx-nitro-vapor-x-24gb-gddr6-384-bit-IDkO6iL.html?search_reason=search%7Corganic',
+            'title' => 'Sapphire Radeon RX 7900 XTX',
+        ]);
+
+        $this->assertSame('kO6iL', $listing->externalId);
+    }
 }

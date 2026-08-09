@@ -4,7 +4,7 @@ namespace App\Services\Crawlers;
 
 /**
  * Data structure for extracted listing information from OLX
- * 
+ *
  * This class represents a parsed listing with all extracted data
  * from the OLX search results or detail pages
  */
@@ -31,9 +31,6 @@ class ParsedListing
 
     /**
      * Create ParsedListing from array data
-     * 
-     * @param array $data
-     * @return self
      */
     public static function fromArray(array $data): self
     {
@@ -59,8 +56,6 @@ class ParsedListing
 
     /**
      * Convert to array
-     * 
-     * @return array
      */
     public function toArray(): array
     {
@@ -80,69 +75,66 @@ class ParsedListing
             'is_promoted' => $this->isPromoted,
             'is_urgent' => $this->isUrgent,
             'is_negotiable' => $this->isNegotiable,
-            'metadata' => $this->metadata
+            'metadata' => $this->metadata,
         ];
     }
 
     /**
      * Check if listing has valid required data
-     * 
-     * @return bool
      */
     public function isValid(): bool
     {
-        return !empty($this->externalId) && 
-               !empty($this->url) && 
-               !empty($this->title);
+        return ! empty($this->externalId) &&
+               ! empty($this->url) &&
+               ! empty($this->title);
     }
 
     /**
      * Get external ID from URL if not provided
-     * 
-     * @param string $url
-     * @return string|null
      */
     public static function extractExternalIdFromUrl(string $url): ?string
     {
-        // OLX URLs typically contain ID like: https://www.olx.ro/d/oferta/title-ID123456.html
-        if (preg_match('/ID(\d+)/', $url, $matches)) {
+        // OLX listing URLs end in an immutable, case-sensitive ID such as IDkO6iL.
+        if (preg_match('/-ID([A-Za-z0-9]+)\.html(?:[?#]|$)/', $url, $matches)) {
             return $matches[1];
         }
-        
+
         // Alternative pattern: /oferta/something-123456.html
         if (preg_match('/\/oferta\/.*-(\d+)\.html/', $url, $matches)) {
             return $matches[1];
         }
-        
+
         // Fallback: extract any number sequence from URL
         if (preg_match('/(\d{6,})/', $url, $matches)) {
             return $matches[1];
         }
-        
+
         return null;
     }
 
     /**
      * Normalize URL to absolute format
-     * 
-     * @param string $url
-     * @param string $baseUrl
-     * @return string
      */
     public static function normalizeUrl(string $url, string $baseUrl = 'https://www.olx.ro'): string
     {
         if (str_starts_with($url, 'http')) {
+            $parts = parse_url($url);
+
+            if (($parts['host'] ?? null) === 'www.olx.ro' || ($parts['host'] ?? null) === 'olx.ro') {
+                return sprintf('%s://%s%s', $parts['scheme'] ?? 'https', $parts['host'], $parts['path'] ?? '/');
+            }
+
             return $url;
         }
-        
+
         if (str_starts_with($url, '//')) {
-            return 'https:' . $url;
+            return 'https:'.$url;
         }
-        
+
         if (str_starts_with($url, '/')) {
-            return rtrim($baseUrl, '/') . $url;
+            return rtrim($baseUrl, '/').$url;
         }
-        
-        return $baseUrl . '/' . ltrim($url, '/');
+
+        return $baseUrl.'/'.ltrim($url, '/');
     }
 }

@@ -19,9 +19,9 @@ class DealIngestionService extends BaseService
 {
     protected string $logChannel = 'crawler';
 
-    private IntentClassifierService $classifier;
+    private ListingClassificationService $classifier;
 
-    public function __construct(IntentClassifierService $classifier)
+    public function __construct(ListingClassificationService $classifier)
     {
         parent::__construct();
         $this->classifier = $classifier;
@@ -300,24 +300,7 @@ class DealIngestionService extends BaseService
      */
     private function classifyListing(HuntedDeal $huntedDeal, ParsedListing $listing): Classification
     {
-        try {
-            return $this->classifier->classifyListing($huntedDeal->search_term, $listing);
-        } catch (\Throwable $e) {
-            $this->logWarning('Classification failed, using defaults', [
-                'hunted_deal_id' => $huntedDeal->id,
-                'external_id' => $listing->externalId,
-                'error' => $e->getMessage(),
-            ]);
-
-            // Return default classification on error
-            return new Classification(
-                matchesIntent: false,
-                likelyWorking: null,
-                confidence: 0.0,
-                reasoning: 'Classification failed: '.$e->getMessage(),
-                intentScore: 0,
-            );
-        }
+        return $this->classifier->classify($huntedDeal, $listing);
     }
 
     /**

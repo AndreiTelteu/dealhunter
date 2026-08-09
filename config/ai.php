@@ -62,6 +62,12 @@ Search term: "{search_term}"
 Title: "{title}"
 Description: "{description}"
 
+User title preferences:
+- Excluded phrases: {excluded_phrases}
+- Preferred phrases: {preferred_phrases}
+
+Evaluate excluded phrases as a strong negative signal only when they describe the item being sold, not merely its prior usage or other incidental context in the description. Penalize each relevant excluded phrase heavily in intent_score. Preferred phrases are optional: never require them, but add only a small +5 score boost per matching phrase, capped at 100.
+
 CRITICAL: The user wants to BUY the product itself, not accessories, parts, cables, adapters, cases, or other items that merely mention the product name.
 
 Scoring guide (0-100):

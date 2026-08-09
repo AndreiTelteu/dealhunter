@@ -86,7 +86,7 @@ class OlxCrawlerService extends BaseService
 
     public function parseListingData(array $rawListing): ParsedListing
     {
-        $externalId = ParsedListing::extractExternalIdFromUrl($rawListing['url'] ?? '') ?: ($rawListing['external_id'] ?? uniqid('olx_'));
+        $externalId = $rawListing['external_id'] ?? ParsedListing::extractExternalIdFromUrl($rawListing['url'] ?? '') ?? uniqid('olx_');
         $priceData = ! empty($rawListing['price_raw']) ? $this->priceParser->parsePrice($rawListing['price_raw']) : null;
 
         return new ParsedListing(
@@ -249,7 +249,11 @@ JS;
 () => {
   const selectors = {$selectors};
   const pick = (names, href = false) => { for (const name of names) { const element = document.querySelector(selectors[name]); const value = href ? element?.href : element?.textContent?.trim(); if (value) return value; } return null; };
-  return { description: pick(['detail_description', 'detail_description_fallback']), seller_name: pick(['detail_seller', 'detail_seller_fallback']), seller_url: pick(['detail_seller_url', 'detail_seller_url_fallback'], true), posted_at: pick(['detail_posted_date', 'detail_posted_date_fallback']) };
+  const product = [...document.querySelectorAll('script[type="application/ld+json"]')]
+    .flatMap(script => { try { const parsed = JSON.parse(script.textContent || ''); return Array.isArray(parsed) ? parsed : [parsed]; } catch { return []; } })
+    .flatMap(item => Array.isArray(item?.['@graph']) ? item['@graph'] : [item])
+    .find(item => item?.['@type'] === 'Product' && item?.sku);
+  return { external_id: product?.sku ? String(product.sku) : null, description: pick(['detail_description', 'detail_description_fallback']), seller_name: pick(['detail_seller', 'detail_seller_fallback']), seller_url: pick(['detail_seller_url', 'detail_seller_url_fallback'], true), posted_at: pick(['detail_posted_date', 'detail_posted_date_fallback']) };
 }
 JS;
     }

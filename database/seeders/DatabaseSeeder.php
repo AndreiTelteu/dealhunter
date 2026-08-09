@@ -16,9 +16,9 @@ class DatabaseSeeder extends Seeder
     {
         // Create demo user
         $demoUser = User::firstOrCreate(
-            ['email' => 'demo@olx-deal-hunter.com'],
+            ['email' => 'andrei@telteu.ro'],
             [
-                'name' => 'Demo User',
+                'name' => 'AndreiTelteu',
                 'password' => Hash::make('demo123'),
                 'email_verified_at' => now(),
                 'is_admin' => true,
@@ -28,28 +28,11 @@ class DatabaseSeeder extends Seeder
         // Create sample hunted deals for demo user
         $huntedDeals = [
             [
-                'search_term' => 'iPhone 13',
-                'notes' => 'Looking for iPhone 13 in good condition, preferably unlocked',
+                'search_term' => 'rx 7900 xtx',
                 'is_active' => true,
             ],
             [
-                'search_term' => 'MacBook Pro',
-                'notes' => 'MacBook Pro 2020 or newer, minimum 16GB RAM',
-                'is_active' => true,
-            ],
-            [
-                'search_term' => 'PlayStation 5',
-                'notes' => 'PS5 console with controllers and games',
-                'is_active' => false,
-            ],
-            [
-                'search_term' => 'Samsung Galaxy S23',
-                'notes' => 'Latest Samsung flagship phone',
-                'is_active' => true,
-            ],
-            [
-                'search_term' => 'Nintendo Switch',
-                'notes' => 'Nintendo Switch console with popular games',
+                'search_term' => 'rtx 4080',
                 'is_active' => true,
             ],
         ];
@@ -64,7 +47,7 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $this->command->info('Demo user created: demo@olx-deal-hunter.com / demo123');
+        $this->command->info('Demo user created: andrei@telteu.ro / demo123');
         $this->command->info('Sample hunted deals created for demo user');
     }
 }

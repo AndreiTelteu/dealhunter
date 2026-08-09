@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\HuntedDeal;
 use App\Services\Crawlers\ParsedListing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -42,7 +43,7 @@ class AiService extends BaseService
      *
      * @return array ['intent_score' => int, 'matches' => bool, 'reasoning' => string]
      */
-    public function classifyIntent(string $searchTerm, ParsedListing $listing): array
+    public function classifyIntent(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal = null): array
     {
         if (! $this->isEnabled()) {
             return [
@@ -53,11 +54,18 @@ class AiService extends BaseService
         }
 
         return $this->executeWithErrorHandling(
-            function () use ($searchTerm, $listing) {
-                $cacheKey = $this->getCacheKey('intent', $searchTerm, $listing->title, $listing->description);
+            function () use ($searchTerm, $listing, $huntedDeal) {
+                $cacheKey = $this->getCacheKey(
+                    'intent',
+                    $searchTerm,
+                    $listing->title,
+                    $listing->description,
+                    json_encode($huntedDeal?->excluded_phrases ?? [], JSON_THROW_ON_ERROR),
+                    json_encode($huntedDeal?->preferred_phrases ?? [], JSON_THROW_ON_ERROR)
+                );
 
-                $rawResponse = Cache::remember($cacheKey, 3600, function () use ($searchTerm, $listing) {
-                    $prompt = $this->buildIntentPrompt($searchTerm, $listing);
+                $rawResponse = Cache::remember($cacheKey, 3600, function () use ($searchTerm, $listing, $huntedDeal) {
+                    $prompt = $this->buildIntentPrompt($searchTerm, $listing, $huntedDeal);
 
                     return $this->callAiProvider($prompt);
                 });
@@ -113,9 +121,9 @@ class AiService extends BaseService
     /**
      * Perform comprehensive classification
      */
-    public function comprehensiveClassification(string $searchTerm, ParsedListing $listing): array
+    public function comprehensiveClassification(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal = null): array
     {
-        $intentResult = $this->classifyIntent($searchTerm, $listing);
+        $intentResult = $this->classifyIntent($searchTerm, $listing, $huntedDeal);
         $workingResult = $this->assessWorkingCondition($listing);
 
         $overallConfidence = $this->calculateOverallConfidence($intentResult, $workingResult);
@@ -134,7 +142,7 @@ class AiService extends BaseService
     /**
      * Build prompt for intent classification
      */
-    private function buildIntentPrompt(string $searchTerm, ParsedListing $listing): string
+    private function buildIntentPrompt(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal = null): string
     {
         $template = config('ai.prompts.intent_matching',
             'Analyze if this listing matches the search intent for "{search_term}". Title: "{title}". Description: "{description}". Return JSON with "matches" (boolean), "confidence" (0-1), and "reasoning" (string).'
@@ -144,10 +152,14 @@ class AiService extends BaseService
             '{search_term}',
             '{title}',
             '{description}',
+            '{excluded_phrases}',
+            '{preferred_phrases}',
         ], [
             $searchTerm,
             $listing->title,
             $listing->description ?? '',
+            json_encode($huntedDeal?->excluded_phrases ?? [], JSON_THROW_ON_ERROR),
+            json_encode($huntedDeal?->preferred_phrases ?? [], JSON_THROW_ON_ERROR),
         ], $template);
     }
 

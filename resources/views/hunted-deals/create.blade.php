@@ -47,6 +47,31 @@
                     </p>
                 </div>
 
+                <!-- Phrase tuning -->
+                <section class="border-y border-hairline py-6 space-y-6" aria-labelledby="phrase-tuning-heading">
+                    <div>
+                        <p class="placard text-[0.6rem]">Rafinare opțională</p>
+                        <h3 id="phrase-tuning-heading" class="mt-1 font-sans text-base font-bold text-[#eaf4f6]">Semnale pentru rezultate mai bune</h3>
+                        <p class="mt-2 text-sm text-dim" style="max-width:60ch">
+                            Adaugă expresii separate pentru a evidenția anunțurile potrivite sau pentru a evita variantele nedorite.
+                        </p>
+                    </div>
+
+                    <x-phrase-tag-input
+                        name="preferred_phrases"
+                        label="Expresii preferate"
+                        description="Un +5 mic la scor pentru fiecare expresie găsită în titlu; nu sunt obligatorii. Apasă Enter sau scrie o virgulă pentru a adăuga mai multe."
+                    />
+
+                    <x-phrase-tag-input
+                        name="excluded_phrases"
+                        label="Expresii de exclus"
+                        description="Evită anunțurile care conțin aceste expresii, de exemplu „pentru piese” sau „defect”."
+                        placeholder="Scrie o expresie de exclus și apasă Enter"
+                        tone="amber"
+                    />
+                </section>
+
                 <!-- Notes -->
                 <div>
                     <x-input-label for="notes" value="Notițe" />

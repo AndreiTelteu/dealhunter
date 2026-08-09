@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ReclassifyHuntedDealIntent;
 use App\Models\HuntedDeal;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
@@ -78,6 +79,10 @@ class HuntedDealController extends Controller
     {
         $validated = $request->validate([
             'search_term' => ['required', 'string', 'max:255'],
+            'excluded_phrases' => ['nullable', 'array', 'max:20'],
+            'excluded_phrases.*' => ['string', 'max:100'],
+            'preferred_phrases' => ['nullable', 'array', 'max:20'],
+            'preferred_phrases.*' => ['string', 'max:100'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -94,6 +99,8 @@ class HuntedDealController extends Controller
         }
 
         $validated['user_id'] = Auth::id();
+        $validated['excluded_phrases'] = $this->normalizePhrases($validated['excluded_phrases'] ?? []);
+        $validated['preferred_phrases'] = $this->normalizePhrases($validated['preferred_phrases'] ?? []);
         $validated['is_active'] = $request->boolean('is_active', true);
 
         $huntedDeal = HuntedDeal::create($validated);
@@ -238,6 +245,10 @@ class HuntedDealController extends Controller
             abort(404);
         }
 
+        $previousSearchTerm = $huntedDeal->search_term;
+        $previousExcludedPhrases = $huntedDeal->excluded_phrases ?? [];
+        $previousPreferredPhrases = $huntedDeal->preferred_phrases ?? [];
+
         $validated = $request->validate([
             'search_term' => [
                 'required',
@@ -247,17 +258,78 @@ class HuntedDealController extends Controller
                     return $query->where('user_id', Auth::id());
                 })->ignore($huntedDeal->id),
             ],
+            'excluded_phrases' => ['nullable', 'array', 'max:20'],
+            'excluded_phrases.*' => ['string', 'max:100'],
+            'preferred_phrases' => ['nullable', 'array', 'max:20'],
+            'preferred_phrases.*' => ['string', 'max:100'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $validated['excluded_phrases'] = $this->normalizePhrases($validated['excluded_phrases'] ?? []);
+        $validated['preferred_phrases'] = $this->normalizePhrases($validated['preferred_phrases'] ?? []);
         $validated['is_active'] = $request->boolean('is_active');
 
         $huntedDeal->update($validated);
 
+        if ($scope = $this->reclassificationScope(
+            $previousSearchTerm,
+            $previousExcludedPhrases,
+            $previousPreferredPhrases,
+            $huntedDeal
+        )) {
+            ReclassifyHuntedDealIntent::dispatch(
+                huntedDealId: $huntedDeal->id,
+                scope: $scope,
+                triggeredByUserId: Auth::id(),
+            );
+        }
+
         return redirect()
             ->route('hunted-deals.show', $huntedDeal)
             ->with('success', 'Hunted deal updated successfully!');
+    }
+
+    /**
+     * Select only the deals whose current state can be affected by an edit.
+     */
+    private function reclassificationScope(
+        string $previousSearchTerm,
+        array $previousExcludedPhrases,
+        array $previousPreferredPhrases,
+        HuntedDeal $huntedDeal
+    ): ?string {
+        $searchTermChanged = $previousSearchTerm !== $huntedDeal->search_term;
+        $exclusionsChanged = $previousExcludedPhrases !== ($huntedDeal->excluded_phrases ?? []);
+        $preferencesChanged = $previousPreferredPhrases !== ($huntedDeal->preferred_phrases ?? []);
+
+        if ($searchTermChanged || ($exclusionsChanged && $preferencesChanged)) {
+            return ReclassifyHuntedDealIntent::SCOPE_ALL;
+        }
+
+        if ($exclusionsChanged) {
+            return ReclassifyHuntedDealIntent::SCOPE_MATCHING;
+        }
+
+        if ($preferencesChanged) {
+            return ReclassifyHuntedDealIntent::SCOPE_NON_MATCHING;
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize user-defined title phrases before persisting them.
+     *
+     * @param  array<int, string>  $phrases
+     * @return list<string>
+     */
+    private function normalizePhrases(array $phrases): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn (string $phrase): string => trim(preg_replace('/\s+/', ' ', $phrase) ?? ''),
+            $phrases
+        ))));
     }
 
     /**

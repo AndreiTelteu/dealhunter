@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\HuntedDeal;
 use App\Services\Crawlers\ParsedListing;
 use App\Services\IntentClassifierService;
 use Illuminate\Support\Facades\Http;
@@ -101,6 +102,57 @@ class IntentClassifierKeywordTest extends TestCase
 
         $this->assertFalse($classification->matchesIntent);
         $this->assertSame(30, $classification->intentScore);
+    }
+
+    public function test_preferred_title_phrase_adds_five_points(): void
+    {
+        $huntedDeal = new HuntedDeal([
+            'preferred_phrases' => ['gaming'],
+        ]);
+
+        $classification = $this->classifier->classifyListing(
+            'laptop',
+            $this->listing('Notebook Dell Latitude 5420 gaming'),
+            $huntedDeal
+        );
+
+        $this->assertTrue($classification->matchesIntent);
+        $this->assertSame(85, $classification->intentScore);
+        $this->assertStringContainsString('preferred phrase', $classification->reasoning);
+    }
+
+    public function test_excluded_title_phrase_applies_heavy_penalty_without_forcing_rejection(): void
+    {
+        $huntedDeal = new HuntedDeal([
+            'excluded_phrases' => ['sistem pc'],
+        ]);
+
+        $classification = $this->classifier->classifyListing(
+            'placa video',
+            $this->listing('Placa video RTX 4070 Super sistem PC complet'),
+            $huntedDeal
+        );
+
+        $this->assertFalse($classification->matchesIntent);
+        $this->assertSame(40, $classification->intentScore);
+        $this->assertStringContainsString('excluded phrase', $classification->reasoning);
+    }
+
+    public function test_phrase_preference_is_not_applied_from_description_only(): void
+    {
+        $huntedDeal = new HuntedDeal([
+            'excluded_phrases' => ['sistem pc'],
+            'preferred_phrases' => ['graphics card'],
+        ]);
+
+        $classification = $this->classifier->classifyListing(
+            'placa video',
+            $this->listing('Placa video RTX 4070 Super', 'Folosit anterior intr-un sistem PC. Graphics card testata.'),
+            $huntedDeal
+        );
+
+        $this->assertTrue($classification->matchesIntent);
+        $this->assertSame(100, $classification->intentScore);
     }
 
     public function test_ai_score_takes_precedence_over_keywords(): void

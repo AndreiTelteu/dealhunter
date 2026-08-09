@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\HuntedDeal;
 use App\Services\Crawlers\ParsedListing;
 
 /**
@@ -117,16 +118,15 @@ class IntentClassifierService extends BaseService
     /**
      * Classify a listing for intent matching and working condition
      */
-    public function classifyListing(string $searchTerm, ParsedListing $listing): Classification
+    public function classifyListing(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal = null): Classification
     {
         return $this->executeWithErrorHandling(
-            function () use ($searchTerm, $listing) {
-                // Use AI classification if enabled, otherwise fall back to keyword-based
+            function () use ($searchTerm, $listing, $huntedDeal) {
                 if (config('features.ai_classification_enabled', true)) {
-                    return $this->classifyWithAI($searchTerm, $listing);
-                } else {
-                    return $this->classifyWithKeywords($searchTerm, $listing);
+                    return $this->classifyWithAI($searchTerm, $listing, $huntedDeal);
                 }
+
+                return $this->classifyWithKeywords($searchTerm, $listing, $huntedDeal);
             },
             [
                 'search_term' => $searchTerm,
@@ -140,38 +140,19 @@ class IntentClassifierService extends BaseService
     /**
      * Classify using AI service
      */
-    private function classifyWithAI(string $searchTerm, ParsedListing $listing): Classification
+    private function classifyWithAI(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal): Classification
     {
         try {
-            $aiResult = $this->aiService->comprehensiveClassification($searchTerm, $listing);
+            $aiResult = $this->aiService->comprehensiveClassification($searchTerm, $listing, $huntedDeal);
 
-            $intentScore = $aiResult['intent_score'];
-            $matchesIntent = $aiResult['matches_intent'];
-            $keywordWorking = $this->assessWorkingCondition($listing->description ?? '');
-            $likelyWorking = $aiResult['likely_working'] ?? $keywordWorking;
-
-            $finalConfidence = $aiResult['confidence'];
-            if ($aiResult['likely_working'] === $keywordWorking) {
-                $finalConfidence = min(1.0, $finalConfidence + 0.1);
-            }
-
-            $this->logDebug('AI classification completed', [
-                'search_term' => $searchTerm,
-                'title' => $listing->title,
-                'intent_score' => $intentScore,
-                'final_intent' => $matchesIntent,
-                'ai_working' => $aiResult['likely_working'],
-                'final_working' => $likelyWorking,
-                'ai_confidence' => $aiResult['confidence'],
-                'final_confidence' => $finalConfidence,
-            ]);
-
-            return new Classification(
-                matchesIntent: $matchesIntent,
-                likelyWorking: $likelyWorking,
-                confidence: $finalConfidence,
-                reasoning: $aiResult['reasoning'],
-                intentScore: $intentScore,
+            return $this->applyPhrasePreferences(
+                $aiResult['intent_score'],
+                $aiResult['matches_intent'],
+                $aiResult['reasoning'],
+                $listing->title,
+                $huntedDeal,
+                $aiResult['likely_working'] ?? $this->assessWorkingCondition($listing->description ?? ''),
+                $aiResult['confidence']
             );
 
         } catch (\Throwable $e) {
@@ -181,14 +162,14 @@ class IntentClassifierService extends BaseService
                 'error' => $e->getMessage(),
             ]);
 
-            return $this->classifyWithKeywords($searchTerm, $listing);
+            return $this->classifyWithKeywords($searchTerm, $listing, $huntedDeal);
         }
     }
 
     /**
      * Classify using keyword-based analysis
      */
-    private function classifyWithKeywords(string $searchTerm, ParsedListing $listing): Classification
+    private function classifyWithKeywords(string $searchTerm, ParsedListing $listing, ?HuntedDeal $huntedDeal): Classification
     {
         $intentScore = $this->keywordIntentScore($searchTerm, $listing->title, $listing->description ?? '');
         $intentMatch = $intentScore >= (int) config('ai.intent_score_threshold', 60);
@@ -200,22 +181,77 @@ class IntentClassifierService extends BaseService
             'description_quality' => $this->assessDescriptionQuality($listing->description ?? ''),
         ]);
 
-        $this->logDebug('Keyword classification completed', [
-            'search_term' => $searchTerm,
-            'title' => $listing->title,
+        return $this->applyPhrasePreferences(
+            $intentScore,
+            $intentMatch,
+            $this->generateReasoning($intentMatch, $workingCondition, $searchTerm, $listing),
+            $listing->title,
+            $huntedDeal,
+            $workingCondition,
+            $confidence
+        );
+    }
+
+    /**
+     * Apply explicit per-search title preferences after semantic classification.
+     *
+     * Exclusions are intentionally a strong negative signal, while every
+     * preferred title phrase receives a small deterministic five-point boost.
+     */
+    private function applyPhrasePreferences(
+        int $intentScore,
+        bool $matchesIntent,
+        string $reasoning,
+        string $title,
+        ?HuntedDeal $huntedDeal,
+        ?bool $likelyWorking,
+        float $confidence
+    ): Classification
+    {
+        $normalizedTitle = $this->normalizeIntentText($title);
+        $matchedExclusions = $this->matchingPhrases($normalizedTitle, $huntedDeal?->excluded_phrases ?? []);
+        $matchedPreferences = $this->matchingPhrases($normalizedTitle, $huntedDeal?->preferred_phrases ?? []);
+
+        if ($matchedExclusions !== []) {
+            $intentScore = max(0, $intentScore - (60 * count($matchedExclusions)));
+            $reasoning .= ' Title matched excluded phrase(s): '.implode(', ', $matchedExclusions).'.';
+        }
+
+        if ($matchedPreferences !== [] && $matchedExclusions === []) {
+            $intentScore = min(100, $intentScore + (5 * count($matchedPreferences)));
+            $reasoning .= ' Title matched preferred phrase(s): '.implode(', ', $matchedPreferences).'.';
+        }
+
+        $matchesIntent = $matchesIntent && $intentScore >= (int) config('ai.intent_score_threshold', 60);
+
+        $this->logDebug('Classification completed with title phrase preferences', [
+            'title' => $title,
             'intent_score' => $intentScore,
-            'intent_match' => $intentMatch,
-            'working_condition' => $workingCondition,
-            'confidence' => $confidence,
+            'matches_intent' => $matchesIntent,
+            'matched_exclusions' => $matchedExclusions,
+            'matched_preferences' => $matchedPreferences,
         ]);
 
         return new Classification(
-            matchesIntent: $intentMatch,
-            likelyWorking: $workingCondition,
+            matchesIntent: $matchesIntent,
+            likelyWorking: $likelyWorking,
             confidence: $confidence,
-            reasoning: $this->generateReasoning($intentMatch, $workingCondition, $searchTerm, $listing),
+            reasoning: $reasoning,
             intentScore: $intentScore,
         );
+    }
+
+    /**
+     * @param  list<string>  $phrases
+     * @return list<string>
+     */
+    private function matchingPhrases(string $normalizedTitle, array $phrases): array
+    {
+        return array_values(array_filter($phrases, function (string $phrase) use ($normalizedTitle): bool {
+            $normalizedPhrase = $this->normalizeIntentText($phrase);
+
+            return $normalizedPhrase !== '' && str_contains($normalizedTitle, $normalizedPhrase);
+        }));
     }
 
     /**

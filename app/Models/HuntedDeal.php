@@ -19,6 +19,8 @@ class HuntedDeal extends Model
     protected $fillable = [
         'user_id',
         'search_term',
+        'excluded_phrases',
+        'preferred_phrases',
         'is_active',
         'notes',
         'last_crawled_at',
@@ -32,6 +34,8 @@ class HuntedDeal extends Model
     protected function casts(): array
     {
         return [
+            'excluded_phrases' => 'array',
+            'preferred_phrases' => 'array',
             'is_active' => 'boolean',
             'last_crawled_at' => 'datetime',
         ];
