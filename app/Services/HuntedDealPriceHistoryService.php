@@ -47,7 +47,6 @@ class HuntedDealPriceHistoryService
 
                 $eligible = collect($currentStateByDeal)
                     ->filter(fn (DealSnapshot $snapshot): bool => $snapshot->matches_intent
-                        && $snapshot->likely_working
                         && $snapshot->price_amount !== null);
 
                 if ($eligible->isEmpty()) {

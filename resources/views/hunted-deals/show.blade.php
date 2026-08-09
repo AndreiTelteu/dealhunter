@@ -254,15 +254,38 @@
                                     <p class="mt-3 font-mono text-[0.62rem] tabular-nums text-dim/60">
                                         Ultimul instantaneu: media a {{ $priceSnapshots->last()->deals_count }} anunțuri potrivite și funcționale cu preț &middot; {{ $priceSnapshots->last()->captured_at->format('d M, H:i') }}
                                     </p>
+                                @elseif($latestPriceSnapshot = $priceSnapshots->last())
+                                    <!-- single aggregate reading: show it before a trace can be drawn -->
+                                    <p class="placard text-[0.6rem] mb-3">Ultimul instantaneu de preț</p>
+                                    <div class="relative min-h-28 border border-hairline bg-[#080c0f] px-5 py-4 overflow-hidden">
+                                        <div class="absolute inset-x-0 top-1/2 h-px bg-[#1c242a]" aria-hidden="true"></div>
+                                        <div class="beam-core beam-idle absolute left-5 top-3 bottom-3 w-[3px]" aria-hidden="true"></div>
+                                        <div class="relative ml-7">
+                                            <p class="font-mono text-2xl font-bold tabular-nums text-beam" style="text-shadow: 0 0 16px rgba(89,227,255,.32);">
+                                                {{ number_format((float) $latestPriceSnapshot->average_price, 0, ',', '.') }}
+                                                <span class="text-[0.7rem] font-normal text-dim">{{ $latestPriceSnapshot->price_currency ?? 'RON' }}</span>
+                                            </p>
+                                            <dl class="mt-2.5 grid grid-cols-2 gap-4 font-mono text-[0.65rem] tabular-nums text-dim/80">
+                                                <div><dt class="placard text-[0.52rem]">Minim</dt><dd class="mt-1 text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->min_price, 0, ',', '.') }}</dd></div>
+                                                <div><dt class="placard text-[0.52rem]">Maxim</dt><dd class="mt-1 text-[#eaf4f6]">{{ number_format((float) $latestPriceSnapshot->max_price, 0, ',', '.') }}</dd></div>
+                                            </dl>
+                                            <p class="mt-3 font-mono text-[0.65rem] tabular-nums text-dim/80">
+                                                {{ $latestPriceSnapshot->captured_at->format('d M Y, H:i') }} &middot; media a {{ $latestPriceSnapshot->deals_count }} anunțuri potrivite
+                                            </p>
+                                            <p class="mt-3 text-sm text-dim">
+                                                Acesta este primul reper. Trasarea evoluției apare după următorul instantaneu.
+                                            </p>
+                                        </div>
+                                    </div>
                                 @else
-                                    <!-- parked trace: no average price snapshots yet -->
+                                    <!-- parked trace: no aggregate snapshot yet -->
                                     <p class="placard text-[0.6rem] mb-3">Medie de preț</p>
                                     <div class="relative h-28 flex items-center" aria-hidden="true">
                                         <div class="absolute inset-x-0 top-1/2 h-px bg-[#1c242a]"></div>
                                         <div class="beam-core beam-idle absolute left-1/2 top-0 bottom-0 w-[3px]"></div>
                                     </div>
                                     <p class="text-sm text-dim mt-3" style="max-width:52ch">
-                                        Încă nu există suficiente instantanee orare pentru a trasa media de preț a anunțurilor potrivite și funcționale. Trasarea apare după cel puțin două instantanee.
+                                        Încă nu există un instantaneu agregat. Media, minimul și maximul vor apărea după următoarea colectare.
                                     </p>
                                 @endif
                             </div>

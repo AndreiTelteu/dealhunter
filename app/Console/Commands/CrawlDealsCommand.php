@@ -6,6 +6,7 @@ use App\Models\HuntedDeal;
 use App\Services\Crawlers\OlxCrawlerService;
 use App\Services\DealIngestionService;
 use App\Services\CrawlLogService;
+use App\Services\HuntedDealPriceSnapshotService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,12 @@ class CrawlDealsCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(OlxCrawlerService $crawler, DealIngestionService $ingestion, CrawlLogService $crawlLogService): int
+    public function handle(
+        OlxCrawlerService $crawler,
+        DealIngestionService $ingestion,
+        CrawlLogService $crawlLogService,
+        HuntedDealPriceSnapshotService $priceSnapshots
+    ): int
     {
         $startTime = microtime(true);
         $isDryRun = $this->option('dry-run');
@@ -89,7 +95,7 @@ class CrawlDealsCommand extends Command
 
             // Process each hunted deal with error isolation
             foreach ($huntedDeals as $huntedDeal) {
-                $dealStats = $this->processHuntedDeal($huntedDeal, $crawler, $ingestion);
+                $dealStats = $this->processHuntedDeal($huntedDeal, $crawler, $ingestion, $priceSnapshots);
                 $this->mergeStats($stats, $dealStats);
 
                 // Update last_crawled_at timestamp after successful processing
@@ -199,7 +205,8 @@ class CrawlDealsCommand extends Command
     private function processHuntedDeal(
         HuntedDeal $huntedDeal,
         OlxCrawlerService $crawler,
-        DealIngestionService $ingestion
+        DealIngestionService $ingestion,
+        HuntedDealPriceSnapshotService $priceSnapshots
     ): array {
         $dealStartTime = microtime(true);
         $dealStats = [
@@ -263,6 +270,10 @@ class CrawlDealsCommand extends Command
                 }
             } else {
                 $this->info("  No valid listings found");
+            }
+
+            if ($priceSnapshots->capture($huntedDeal)) {
+                $this->info('  Captured aggregate price snapshot');
             }
 
             $dealStats['success'] = true;

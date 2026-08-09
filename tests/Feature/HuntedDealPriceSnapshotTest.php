@@ -46,7 +46,7 @@ class HuntedDealPriceSnapshotTest extends TestCase
         ]);
     }
 
-    public function test_command_snapshots_average_of_matching_working_priced_deals(): void
+    public function test_command_snapshots_average_of_matching_priced_deals(): void
     {
         $huntedDeal = $this->createHuntedDeal();
 
@@ -54,7 +54,8 @@ class HuntedDealPriceSnapshotTest extends TestCase
         $this->createDeal($huntedDeal, 1000, true, true);
         $this->createDeal($huntedDeal, 2000, true, true);
 
-        // Excluded: no price ("Schimb"), not matching, not working
+        // Excluded: no price or not matching. A priced match is included even
+        // when working-condition evidence has not been collected yet.
         $this->createDeal($huntedDeal, null, true, true);
         $this->createDeal($huntedDeal, 500, false, true);
         $this->createDeal($huntedDeal, 500, true, false);
@@ -64,10 +65,10 @@ class HuntedDealPriceSnapshotTest extends TestCase
         $snapshot = HuntedDealPriceSnapshot::sole();
 
         $this->assertSame($huntedDeal->id, $snapshot->hunted_deal_id);
-        $this->assertSame('1500.00', $snapshot->average_price);
-        $this->assertSame('1000.00', $snapshot->min_price);
+        $this->assertSame('1166.67', $snapshot->average_price);
+        $this->assertSame('500.00', $snapshot->min_price);
         $this->assertSame('2000.00', $snapshot->max_price);
-        $this->assertSame(2, $snapshot->deals_count);
+        $this->assertSame(3, $snapshot->deals_count);
         $this->assertSame('RON', $snapshot->price_currency);
         $this->assertNotNull($snapshot->captured_at);
     }

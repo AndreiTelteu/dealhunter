@@ -177,7 +177,7 @@ class HuntedDealController extends Controller
 
         $deals = $query->paginate(20)->withQueryString();
 
-        // Get hourly average price snapshots for the spectrum trace
+        // Get hourly average price snapshots for the spectrum trace.
         $priceSnapshots = $huntedDeal->priceSnapshots()->get();
 
         // Get filter counts for display
