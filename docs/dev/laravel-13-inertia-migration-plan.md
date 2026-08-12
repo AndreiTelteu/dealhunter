@@ -75,7 +75,7 @@ Tick a box only when done **and verified**. One agent per phase unless the hando
 ### Phase 4 — migrate authenticated product surfaces
 - [x] 4.1 Dashboard finalized on shared primitives (recent deals + local media gallery)
 - [x] 4.2 Deals index: filters, sorting, pagination, gallery listing mode + feature tests
-- [ ] 4.3 Deals show: deal, snapshots, local media gallery + feature tests
+- [x] 4.3 Deals show: deal, snapshots, local media gallery + feature tests
 - [ ] 4.4 Favorites index + toggle flow + feature tests
 - [ ] 4.5 Hunted deals index (filters, statistics) + feature tests
 - [ ] 4.6 Hunted deals create + edit forms (validation error bags) + feature tests
@@ -435,6 +435,12 @@ Append entries below. Format:
 - Gate (all green): `npx tsc --noEmit` clean; `npm run build` green (fancybox code-split chunk now emitted — expected from Phase 3 gallery import); `vendor/bin/pint --dirty` passed; `vendor/bin/phpunit` OK **54 tests / 224 assertions**, 0 failures/errors/skips/notices/deprecations; `php artisan route:list` green; `migrate:status` vs. app MySQL still unreachable from this CLI (known since Phase 0) — scratch SQLite `migrate` + `migrate:status` = all migrations Ran.
 - Deviations: none.
 - Next agent must know (Phase 4.2): dashboard Blade (`resources/views/dashboard.blade.php`) is still orphaned on disk — do NOT delete until 4.10. Auto-refresh is now an Inertia reload, not a full page reload; if Phase 7 browser checks want strict parity, a full `window.location.reload()` variant is a one-line swap. `DealListRow` dashboard variant defaults (`ledgerActions` right column, default meta) are verified to match the Blade dashboard row — reuse them for deals index/favorites (ledger variant) in 4.2+.
+
+### 2026-08-19 — Phase 4.3 — deal detail migration (pi)
+- Done: Converted `DealController@show` to explicit `Inertia::render('Deals/Show')` props and added the typed React detail surface with current reading, full local-media gallery, favorite action, snapshot/price history, classification metadata, and safe OLX/seller links. Authorization and route model binding are preserved; media uses persisted `DealMedia` rows only and never `image_urls`.
+- Tests/gate: Added `DealsShowInertiaTest` coverage for guest/foreign access, explicit props, latest-snapshot readout, null classification, favorite state, snapshot history, and local-only media. Focused suite: 7 tests / 114 assertions; Pint, TypeScript, and Vite build green.
+- Decisions/deviations: No chart dependency added; historical visualization uses native React/CSS. The old Blade template remains until Phase 4.10 cleanup.
+- Next agent must know: Phase 4.4 is favorites index; reuse the existing Deal DTO/gallery/favorite primitives and preserve JSON toggle compatibility.
 
 ### 2026-08-13 — Phase 4.2 — deals-index migration agent (pi)
 - Done: Deals index migrated end-to-end to Inertia React.

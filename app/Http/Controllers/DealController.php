@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Deal;
 use App\Models\DealMedia;
+use App\Models\DealSnapshot;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,7 +13,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -194,7 +194,7 @@ class DealController extends Controller
     /**
      * Display the specified deal.
      */
-    public function show(Deal $deal): View
+    public function show(Deal $deal): Response
     {
         // Ensure the deal belongs to the authenticated user
         if ($deal->huntedDeal->user_id !== Auth::id()) {
@@ -210,7 +210,90 @@ class DealController extends Controller
 
         $deal->is_favorite = Auth::user()->favorites()->where('deal_id', $deal->id)->exists();
 
-        return view('deals.show', compact('deal'));
+        return Inertia::render('Deals/Show', [
+            'deal' => $this->serializeDealDetail($deal),
+            'current' => $this->serializeCurrentReadout($deal),
+            'snapshots' => $deal->snapshots
+                ->map(fn (DealSnapshot $snapshot) => $this->serializeSnapshot($snapshot))
+                ->all(),
+            'huntedDeal' => [
+                'searchTerm' => $deal->huntedDeal->search_term,
+                'isActive' => (bool) $deal->huntedDeal->is_active,
+                'showUrl' => route('hunted-deals.show', $deal->huntedDeal),
+            ],
+            'links' => [
+                'index' => route('deals.index'),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize the deal fields shown on the deal detail surface into an
+     * explicit, frontend-safe array (camelCase, URLs built server-side).
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeDealDetail(Deal $deal): array
+    {
+        return [
+            'id' => $deal->id,
+            'title' => $deal->title,
+            'createdAtLabel' => $deal->created_at->format('d M Y, H:i'),
+            'lastSeenAtLabel' => $deal->last_seen_at?->format('d M Y, H:i'),
+            'externalUrl' => $deal->url,
+            'isFavorite' => (bool) $deal->is_favorite,
+            'media' => $this->serializeMedia($deal),
+            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
+        ];
+    }
+
+    /**
+     * Serialize the "current reading" of the deal detail surface: the
+     * latest snapshot when one exists, otherwise the deal itself — the
+     * exact merge the Blade page performed. Classification fields stay
+     * nullable so the "Fără clasificare" state survives.
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeCurrentReadout(Deal $deal): array
+    {
+        $current = $deal->latestSnapshot ?? $deal;
+
+        return [
+            'title' => $current->title,
+            'priceAmount' => $current->price_amount !== null ? (float) $current->price_amount : null,
+            'priceCurrency' => $current->price_currency,
+            'priceRaw' => $current->price_raw,
+            'description' => $current->description,
+            'matchesIntent' => $current->matches_intent === null ? null : (bool) $current->matches_intent,
+            'intentScore' => $current->intent_score,
+            'likelyWorking' => $current->likely_working === null ? null : (bool) $current->likely_working,
+            'confidence' => $current->confidence !== null ? (float) $current->confidence : null,
+            'snapshotCapturedAtLabel' => $deal->latestSnapshot?->captured_at?->format('d M Y, H:i'),
+            'postedAtLabel' => $current->posted_at?->format('d M Y, H:i'),
+            'location' => $current->location,
+            'sellerName' => $current->seller_name,
+            'sellerUrl' => $current->seller_url,
+        ];
+    }
+
+    /**
+     * Serialize one price/ledger snapshot for the deal detail history.
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeSnapshot(DealSnapshot $snapshot): array
+    {
+        return [
+            'id' => $snapshot->id,
+            'title' => $snapshot->title,
+            'priceAmount' => $snapshot->price_amount !== null ? (float) $snapshot->price_amount : null,
+            'priceCurrency' => $snapshot->price_currency,
+            'location' => $snapshot->location,
+            'sellerName' => $snapshot->seller_name,
+            'capturedAt' => $snapshot->captured_at->toIso8601String(),
+            'capturedAtLabel' => $snapshot->captured_at->format('d M Y, H:i'),
+        ];
     }
 
     /**

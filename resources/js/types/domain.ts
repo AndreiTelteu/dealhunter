@@ -53,7 +53,53 @@ export interface DealSnapshot {
     priceCurrency: string | null;
     location: string | null;
     sellerName: string | null;
+    /** ISO-8601 timestamp, used by the client to build the price trace. */
     capturedAt: string;
+    /** Server-formatted "d M Y, H:i" label for the ledger rows. */
+    capturedAtLabel: string;
+}
+
+/**
+ * "Citire curentă" on the deal detail surface — the latest snapshot when
+ * one exists, otherwise the deal itself (the Blade merge, server-side).
+ * Classification fields stay nullable so the "Fără clasificare" state
+ * survives.
+ */
+export interface DealCurrentReadout {
+    title: string;
+    priceAmount: number | null;
+    priceCurrency: string | null;
+    priceRaw: string | null;
+    description: string | null;
+    matchesIntent: boolean | null;
+    intentScore: number | null;
+    likelyWorking: boolean | null;
+    confidence: number | null;
+    snapshotCapturedAtLabel: string | null;
+    postedAtLabel: string | null;
+    location: string | null;
+    sellerName: string | null;
+    sellerUrl: string | null;
+}
+
+/** The deal itself on the deal detail surface (identity + gallery). */
+export interface DealDetail {
+    id: number;
+    title: string;
+    createdAtLabel: string;
+    lastSeenAtLabel: string | null;
+    externalUrl: string | null;
+    isFavorite: boolean;
+    /** Local-only media, server-filtered — no remote fallback, ever. */
+    media: DealMedia[];
+    toggleFavoriteUrl: string;
+}
+
+/** Owning hunted deal summary on the deal detail surface. */
+export interface HuntedDealSummary {
+    searchTerm: string;
+    isActive: boolean;
+    showUrl: string;
 }
 
 /** Filter facet counts (deals index + hunted-deal show). */
