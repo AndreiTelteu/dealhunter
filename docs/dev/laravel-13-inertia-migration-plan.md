@@ -52,14 +52,14 @@ Tick a box only when done **and verified**. One agent per phase unless the hando
 - [x] 1.5 Isolated green commit: framework upgrade only
 
 ### Phase 2 — install and wire Inertia React
-- [ ] 2.1 Backend: `inertiajs/inertia-laravel` installed; `HandleInertiaRequests` middleware created and registered in `bootstrap/app.php`; root view `resources/views/app.blade.php` created
-- [ ] 2.2 Frontend: `@inertiajs/react`, `react`, `react-dom`, `@vitejs/plugin-react`, TypeScript toolchain installed; exact versions logged
-- [ ] 2.3 Tailwind toolchain normalized (single major version — see Phase 2 details); build green
-- [ ] 2.4 `resources/js/app.tsx` with `createInertiaApp`, page resolution, progress indicator; `vite.config.js` updated; `tsconfig.json` added
-- [ ] 2.5 Route-name strategy implemented (see Phase 2 decision D2)
-- [ ] 2.6 Shared props (auth user + admin flag, flash, app name) implemented and tested
-- [ ] 2.7 Dashboard converted end-to-end as the proof page (`DashboardController` created, closure removed from `routes/web.php`); Inertia feature test asserting component + props passes
-- [ ] 2.8 Verification gate green; commit
+- [x] 2.1 Backend: `inertiajs/inertia-laravel` installed; `HandleInertiaRequests` middleware created and registered in `bootstrap/app.php`; root view `resources/views/app.blade.php` created
+- [x] 2.2 Frontend: `@inertiajs/react`, `react`, `react-dom`, `@vitejs/plugin-react`, TypeScript toolchain installed; exact versions logged
+- [x] 2.3 Tailwind toolchain normalized (single major version — see Phase 2 details); build green
+- [x] 2.4 `resources/js/app.tsx` with `createInertiaApp`, page resolution, progress indicator; `vite.config.js` updated; `tsconfig.json` added
+- [x] 2.5 Route-name strategy implemented (see Phase 2 decision D2)
+- [x] 2.6 Shared props (auth user + admin flag, flash, app name) implemented and tested
+- [x] 2.7 Dashboard converted end-to-end as the proof page (`DashboardController` created, closure removed from `routes/web.php`); Inertia feature test asserting component + props passes
+- [x] 2.8 Verification gate green; commit
 
 ### Phase 3 — shared frontend primitives
 - [ ] 3.1 `Layouts/AppLayout`, `Layouts/GuestLayout`, navigation + responsive/mobile navigation
@@ -387,3 +387,24 @@ Append entries below. Format:
   - D1 values are pinned in `.env` and `.env.example`; production env must match (deploy checklist item).
   - Pre-migration screenshots still owed (Phase 0 deviation) — capture before Phase 4 if the environment allows.
   - PHPUnit is now 12.x; new tests may use PHPUnit 12 attributes/APIs. Zero notices is the new clean baseline.
+
+### 2026-08-14 — Phase 2 — Inertia React wiring agent (pi)
+- Done: Full Phase 2 (2.1–2.8) executed.
+  - 2.1: `inertiajs/inertia-laravel` v3.3.1 installed (`^3.3`). `HandleInertiaRequests` middleware created and registered in `bootstrap/app.php` web middleware group. Root view `resources/views/app.blade.php` created (dark theme, fonts, `@vite` for css+tsx, `@inertiaHead`, `@inertia`).
+  - 2.2: Frontend stack installed — `@inertiajs/react@3.6.1`, `react@19.2.8`, `react-dom@19.2.8`, `@vitejs/plugin-react@5.2.0`, `typescript@7.0.2`, `@types/react@19.x`, `@types/react-dom@19.x`. Inertia v3 uses `<script type="application/json">` for props (verified in `Directive.php`), so legacy raw `assertSee` on the dashboard had to be migrated to `AssertableInertia` (see 2.7 note).
+  - 2.3: Tailwind stays on v3 per D3; `@tailwindcss/vite` v4 was already absent from `package.json` (removed/never added in an earlier session), single major confirmed — `tailwindcss@3.4.17` only. `npm run build` green.
+  - 2.4: `resources/js/app.tsx` with `createInertiaApp` (eager glob resolution, progress bar color `#59e3ff`), `vite.config.js` updated (added `resources/js/app.tsx` alongside existing `app.js` so non-Inertia Blade pages keep working during the migration), `tsconfig.json` added (strict, react-jsx). `npx tsc --noEmit` clean.
+  - 2.5: D2 honored — no Ziggy. Controllers pass fully-built URLs via `route()` in props; static paths live in typed `resources/js/routes.ts`.
+  - 2.6: Shared props implemented in `HandleInertiaRequests::share()` — `appName`, `auth.user` (id/name/email/isAdmin), `flash` (success/error/info/warning, lazy closures). Covered by `DashboardInertiaTest`.
+  - 2.7: Dashboard converted end-to-end. `DashboardController@index` created (mirrors the old closure semantics: stats, 5 hunted deals with `last_crawled_at`/deals_count/notes, 10 recent deals with favorite state, local-only media); closure removed from `routes/web.php`. New `tests/Feature/DashboardInertiaTest.php` (4 tests: component+stats+props, local-media-only, shared auth/admin, flash). Existing `DashboardMediaTest` rewritten to assert via `AssertableInertia` because Inertia props are JSON-encoded (slashes escaped), so raw `assertSee` on a media URL no longer matches. Minimal `resources/js/pages/Dashboard/Index.tsx` stub created — Phase 3/4 will build the real page.
+  - 2.8: Verification gate green.
+- Versions resolved: inertiajs/inertia-laravel v3.3.1, @inertiajs/react 3.6.1, react 19.2.8, react-dom 19.2.8, @vitejs/plugin-react 5.2.0, typescript 7.0.2.
+- Gate results: `vendor/bin/phpunit` OK 51 tests / 196 assertions; `vendor/bin/pint --dirty` passed; `npx tsc --noEmit` clean; `npm run build` green (two CSS/JS chunks — `app.js` Alpine bundle for remaining Blade pages + `app.tsx` Inertia bundle).
+- Deviations (logged per rule 8):
+  - `vite.config.js` temporarily keeps BOTH `app.js` (Alpine) and `app.tsx` (Inertia) as build inputs. This is intentional and transient — the old Blade layout (`layouts/app.blade.php`) is still used by un-migrated pages and `FavoriteTest`; removing `app.js` before Phase 4 cutover would break those pages (ViteException). The next agent must remove `app.js` + `resources/js/app.js` + Alpine/Fancybox npm deps only at the final cutover (Phase 4), not before.
+  - Removed a stray `app/Models/none.php` created by an erroneous earlier `make:model none` invocation (never committed, no references).
+- Next agent must know:
+  - Phase 3 starts from a working Inertia shell: root view + middleware + shared props + one stub page (`Dashboard/Index`). No React layouts/primitives exist yet.
+  - `resources/js/routes.ts` is the only place for static route paths (D2). Parameterized URLs must come from controller props (pattern already used in `DashboardController`: `links` object + per-item `showUrl`/`editUrl`/`toggleFavoriteUrl`).
+  - The dashboard Blade page (`resources/views/dashboard.blade.php`) still exists and is now orphaned (route serves Inertia). Do NOT delete Blade pages until the Phase 4 cutover audit confirms zero references.
+  - Tests asserting media URLs must use `AssertableInertia` `->where('recentDeals.0.media.0.url', ...)`; raw `assertSee` on Inertia-rendered props fails due to JSON slash escaping.

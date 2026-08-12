@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PerformanceMonitoring;
+use App\Http\Middleware\SecurityMonitoring;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,8 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Add performance monitoring middleware to web routes
         $middleware->web(append: [
-            \App\Http\Middleware\PerformanceMonitoring::class,
-            \App\Http\Middleware\SecurityMonitoring::class,
+            PerformanceMonitoring::class,
+            SecurityMonitoring::class,
+            HandleInertiaRequests::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
