@@ -5,6 +5,10 @@
  * parameterized routes. Only static paths live here.
  */
 export const routes = {
+    welcome: '/',
+    login: '/login',
+    register: '/register',
+    logout: '/logout',
     dashboard: '/dashboard',
     huntedDealsIndex: '/hunted-deals',
     huntedDealsCreate: '/hunted-deals/create',

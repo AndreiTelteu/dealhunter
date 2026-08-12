@@ -60,6 +60,7 @@ class HandleInertiaRequests extends Middleware
                 'info' => fn () => $request->session()->get('info'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
+            'favoritesCount' => fn () => $user ? $user->favorites()->count() : 0,
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Deal;
 use App\Models\HuntedDeal;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class FavoriteTest extends TestCase
@@ -79,6 +80,57 @@ class FavoriteTest extends TestCase
         $deal = $this->createDealForUser($owner);
 
         $this->actingAs($intruder)->postJson(route('deals.favorite.toggle', $deal))->assertForbidden();
+    }
+
+    public function test_inertia_toggle_returns_redirect_back_with_flash(): void
+    {
+        $user = $this->createUser('inertia-toggle@example.com');
+        $deal = $this->createDealForUser($user);
+
+        $response = $this->actingAs($user)
+            ->withSession(['url.previous' => route('dashboard')])
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->from(route('dashboard'))
+            ->post(route('deals.favorite.toggle', $deal));
+
+        $response->assertRedirect(route('dashboard'))
+            ->assertSessionHas('success', 'Adăugată la favorite.');
+        $this->assertDatabaseHas('favorites', ['user_id' => $user->id, 'deal_id' => $deal->id]);
+    }
+
+    public function test_inertia_toggle_unfavorite_redirects_with_flash(): void
+    {
+        $user = $this->createUser('inertia-unfavorite@example.com');
+        $deal = $this->createDealForUser($user);
+        $user->favorites()->create(['deal_id' => $deal->id]);
+
+        $response = $this->actingAs($user)
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->from(route('dashboard'))
+            ->post(route('deals.favorite.toggle', $deal));
+
+        $response->assertRedirect(route('dashboard'))
+            ->assertSessionHas('success', 'Eliminată din favorite.');
+        $this->assertDatabaseMissing('favorites', ['user_id' => $user->id, 'deal_id' => $deal->id]);
+    }
+
+    public function test_inertia_toggle_refreshes_shared_favorites_count(): void
+    {
+        $user = $this->createUser('inertia-count@example.com');
+        $deal = $this->createDealForUser($user);
+
+        $this->actingAs($user)
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->from(route('dashboard'))
+            ->post(route('deals.favorite.toggle', $deal))
+            ->assertRedirect();
+
+        $this->flushHeaders();
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('favoritesCount', 1));
     }
 
     public function test_favorites_index_lists_user_favorites(): void

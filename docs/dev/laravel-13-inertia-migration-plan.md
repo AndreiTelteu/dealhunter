@@ -62,15 +62,15 @@ Tick a box only when done **and verified**. One agent per phase unless the hando
 - [x] 2.8 Verification gate green; commit
 
 ### Phase 3 — shared frontend primitives
-- [ ] 3.1 `Layouts/AppLayout`, `Layouts/GuestLayout`, navigation + responsive/mobile navigation
-- [ ] 3.2 Flash/status message component wired to shared props
-- [ ] 3.3 Form primitives: input, label, error, primary/secondary/danger buttons, submit-state, modal/confirm dialog, empty state
-- [ ] 3.4 `Components/Pagination` consuming Laravel paginator link metadata via Inertia visits
-- [ ] 3.5 `Components/Deals/DealMediaGallery` — local media only, Fancybox bind on mount / destroy on unmount, first-image listing mode
-- [ ] 3.6 `Components/Deals/FavoriteButton` — Inertia POST, preserve-state
-- [ ] 3.7 Deal card/list-row/metadata primitives; stat card; spectrum line; phrase-tag input; admin navigation (authorization-aware)
-- [ ] 3.8 Shared TypeScript types for page props and domain DTOs (`resources/js/types/`)
-- [ ] 3.9 Verification gate green; commit
+- [x] 3.1 `Layouts/AppLayout`, `Layouts/GuestLayout`, navigation + responsive/mobile navigation
+- [x] 3.2 Flash/status message component wired to shared props
+- [x] 3.3 Form primitives: input, label, error, primary/secondary/danger buttons, submit-state, modal/confirm dialog, empty state
+- [x] 3.4 `Components/Pagination` consuming Laravel paginator link metadata via Inertia visits
+- [x] 3.5 `Components/Deals/DealMediaGallery` — local media only, Fancybox bind on mount / destroy on unmount, first-image listing mode
+- [x] 3.6 `Components/Deals/FavoriteButton` — Inertia POST, preserve-state
+- [x] 3.7 Deal card/list-row/metadata primitives; stat card; spectrum line; phrase-tag input; admin navigation (authorization-aware)
+- [x] 3.8 Shared TypeScript types for page props and domain DTOs (`resources/js/types/`)
+- [x] 3.9 Verification gate green; commit
 
 ### Phase 4 — migrate authenticated product surfaces
 - [ ] 4.1 Dashboard finalized on shared primitives (recent deals + local media gallery)
@@ -408,3 +408,18 @@ Append entries below. Format:
   - `resources/js/routes.ts` is the only place for static route paths (D2). Parameterized URLs must come from controller props (pattern already used in `DashboardController`: `links` object + per-item `showUrl`/`editUrl`/`toggleFavoriteUrl`).
   - The dashboard Blade page (`resources/views/dashboard.blade.php`) still exists and is now orphaned (route serves Inertia). Do NOT delete Blade pages until the Phase 4 cutover audit confirms zero references.
   - Tests asserting media URLs must use `AssertableInertia` `->where('recentDeals.0.media.0.url', ...)`; raw `assertSee` on Inertia-rendered props fails due to JSON slash escaping.
+
+### 2026-08-16 — Phase 3 — shared-primitives audit/close agent (pi)
+- Done: Audited the Phase 3 dirty batches (all legit, no foreign work) and mapped every artifact to its checkbox, then fixed the two genuine deviations found:
+  - 3.1: `layouts/AppLayout`, `layouts/GuestLayout` (Head, header slot, flash row, footer placard); `components/Navigation` (desktop rail + hamburger + mobile panel, aria-expanded/controls, Escape handling), `NavLink`/`ResponsiveNavLink` (POST logout), `AccountDropdown` (focus trap-ish open, Escape + outside click, `aria-haspopup`/`aria-expanded`, `as="button"` logout), `FavoritesBadge` (listens for `favorites:updated`, parity with Alpine version). Admin link renders only on shared `auth.user.isAdmin` — authorization-aware; the route itself stays server-protected (admin middleware untouched).
+  - 3.2: `ui/Flash` — `FlashMessages` reads shared `flash` via `usePage<SharedPageProps>()`, 4 variants (success/error/info/warning) as spectral lines, `role="alert"` + `aria-live`.
+  - 3.3: `ui/TextInput` (class-for-class port of x-text-input), `InputLabel` (value prop), `InputError` (bag-aware, role="alert"), `PrimaryButton`/`SecondaryButton`/`DangerButton` with `processing` submit-state + `Spinner`, `Modal` (focus trap, Escape, backdrop close, scroll lock, role="dialog" aria-modal), `ConfirmDialog`, `EmptyState`.
+  - 3.4: `components/Pagination` consumes `links[]` (url/label/active from `linkCollection()`) + `meta` subset (`Paginated<T>` type), plain Inertia `Link` visits with `preserveScroll`, HTML-entity decode via DOMParser, mobile + desktop variants; hidden when lastPage <= 1.
+  - 3.5: `deals/DealMediaGallery` — local-only by contract (prop documented as pre-filtered server-side; no remote fallback), Fancybox scoped `bind(container, groupSelector)` on mount / `unbind` on cleanup (checked against `@fancyapps/ui` .d.ts overload signatures — the container-scoped overload is the correct one to avoid document-level leak), unique per-instance group id (`useId`), `thumbnail` mode = first image + sr-only anchors in the same Fancybox group, `gallery` mode = full grid; `onError` drops broken images.
+  - 3.6: `deals/FavoriteButton` — `router.post(toggleUrl, {}, { preserveState, preserveScroll })` verified; optimistic flip with `lastConfirmed` rollback on `onError`; re-dispatches `favorites:updated` from the shared `favoritesCount` prop on `onSuccess`. Backend support for it (part of this batch): `FavoriteController::toggle` content-negotiated — `expectsJson()` keeps the exact JSON contract (`{favorited, count}`, covered by the 3 pre-existing postJson tests) and Inertia/browser requests get `back()->with('success', ...)`; shared `favoritesCount` lazy prop added to `HandleInertiaRequests`; 3 new FavoriteTest cases cover redirect+flash both directions and the refreshed count via `AssertableInertia`.
+  - 3.7: `deals/DealCard`, `deals/DealListRow` (dashboard/ledger variants with injectable media/favorite slots for 3.5/3.6), `deals/DealMetadata` (intent/working/new verdicts), `StatCard`, `deals/SpectrumLine`, `deals/PhraseTagInput`, `ApplicationLogo`, `lib/format` + `lib/navigation` + `lib/csrf`, `routes.ts` extended with the 4 static guest/auth paths it now needs.
+  - 3.8: `types/index.ts` (SharedPageProps incl. `favoritesCount`), `types/domain.ts` (Deal/DealMedia/DealSnapshot/HuntedDeal/Favorite/CrawlLog/SystemHealth/AiClassification DTOs, camelCase to match the explicit controller-serialization convention), `types/pagination.ts` (Paginated/PaginationLink/PaginationMeta).
+- Fixes applied (genuine deviations only): (1) Renamed `resources/js/Layouts` -> `resources/js/layouts` — case-convention deviation: Phase 2 established lowercase `resources/js/pages/` (page resolution is `./pages/**`), and `components/` is lowercase; only the plan prose capitalizes dirs. No imports referenced the dir path (imports go `../components/...`), verified by re-running tsc + build after the rename. (2) No other omissions found: FavoriteButton preserve-state contract, gallery lifecycle, nav auth/admin/mobile, form a11y, pagination wire format, and JSON backward-compat were all already correct in the batch; left untouched.
+- NOT done (by scope): Dashboard page and all Phase 4 pages — `pages/Dashboard/Index.tsx` is still the Phase 2 stub, intentionally. Blade pages remain.
+- Gate (all green): `npx tsc --noEmit` clean; `vendor/bin/pint --dirty` passed; `vendor/bin/phpunit` OK **54 tests / 214 assertions** (51 from Phase 2 + 3 new FavoriteTest cases), 0 failures/errors/skips/notices/deprecations; `npm run build` green (658 modules; CSS chunk 33.30 + 53.37 kB, JS 210.00 + 316.80 kB); `php artisan route:list` green — 47 routes, unchanged surface; `migrate:status` vs. app MySQL still unreachable from this CLI (`lerd-mysql`, known since Phase 0) — safe evidence: scratch SQLite `migrate` + `migrate:status` = 18/18 Ran + every test applies all migrations in-memory.
+- Next agent must know (Phase 4): import paths — pages resolve from `resources/js/pages/**/*.tsx` (lowercase); layouts live at `resources/js/layouts/{AppLayout,GuestLayout}.tsx`; primitives are default exports except `ui/*` (named: TextInput, InputLabel, InputError, PrimaryButton, SecondaryButton, DangerButton, Modal, ConfirmDialog, EmptyState, Spinner, FlashMessages/FlashLine) and Pagination/NavLink/ResponsiveNavLink/FavoritesBadge/ApplicationLogo/StatCard/DealMediaGallery/DealCard/DealListRow/DealMetadata/FavoriteButton/PhraseTagInput/SpectrumLine (default). Parameterized URLs must come from controller props (D2); `tailwind.config.js` now scans `resources/js/**`. The `favorites:updated` CustomEvent contract `{detail:{count}}` is preserved for any component that mutates favorites. Dashboard Blade page still orphaned — delete only in Phase 4 after the reference search.
