@@ -123,7 +123,7 @@ class HuntedDealController extends Controller
         }
 
         $query = $huntedDeal->deals()
-            ->with(['huntedDeal', 'latestSnapshot'])
+            ->with(['huntedDeal', 'latestSnapshot', 'media'])
             ->withCount('snapshots')
             ->withFavoriteState(Auth::id());
 

@@ -83,6 +83,14 @@ class Deal extends Model
     }
 
     /**
+     * Get locally persisted listing media in gallery order.
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(DealMedia::class)->orderBy('position');
+    }
+
+    /**
      * Get the users who favorited the deal.
      */
     public function favoritedBy(): BelongsToMany

@@ -23,7 +23,7 @@ class DealController extends Controller
         $huntedDealId = $this->validatedHuntedDealId($request, $user);
 
         $query = $this->baseDealQuery($user, $huntedDealId)
-            ->with(['huntedDeal', 'latestSnapshot'])
+            ->with(['huntedDeal', 'latestSnapshot', 'media'])
             ->withCount('snapshots')
             ->withFavoriteState($user->id);
 
@@ -99,6 +99,7 @@ class DealController extends Controller
         $deal->load([
             'huntedDeal',
             'latestSnapshot',
+            'media',
             'snapshots' => fn (HasMany $query) => $query->orderBy('captured_at'),
         ]);
 

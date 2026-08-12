@@ -36,7 +36,7 @@ Route::get('/dashboard', function () {
         ->get();
 
     // Get recent deals
-    $recentDeals = \App\Models\Deal::with('huntedDeal')
+    $recentDeals = \App\Models\Deal::with(['huntedDeal', 'latestSnapshot', 'media'])
         ->whereHas('huntedDeal', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })

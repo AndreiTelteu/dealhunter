@@ -169,7 +169,15 @@ class OlxCrawlerService extends BaseService
                 $this->performMcpOperation(fn (): array => $this->mcp->navigate(ParsedListing::normalizeUrl($listing['url'])));
                 $detail = $this->performMcpOperation(fn (): mixed => $this->mcp->evaluate($this->detailExtractorFunction()));
                 if (is_array($detail)) {
+                    $detailImages = $detail['image_urls'] ?? [];
+                    unset($detail['image_urls']);
                     $listings[$index] = array_merge($listing, array_filter($detail, fn (mixed $value): bool => $value !== null && $value !== ''));
+                    if (config('crawler.extract_images', true)) {
+                        $listings[$index]['image_urls'] = $this->processImageUrls(array_merge(
+                            is_array($detailImages) ? $detailImages : [],
+                            is_array($listing['image_urls'] ?? null) ? $listing['image_urls'] : [],
+                        ));
+                    }
                     $listings[$index]['posted_at'] = $this->normalizePostedAt($detail['posted_at'] ?? null) ?? ($listing['posted_at'] ?? null);
                 }
             } catch (\Throwable $exception) {
@@ -253,7 +261,10 @@ JS;
     .flatMap(script => { try { const parsed = JSON.parse(script.textContent || ''); return Array.isArray(parsed) ? parsed : [parsed]; } catch { return []; } })
     .flatMap(item => Array.isArray(item?.['@graph']) ? item['@graph'] : [item])
     .find(item => item?.['@type'] === 'Product' && item?.sku);
-  return { external_id: product?.sku ? String(product.sku) : null, description: pick(['detail_description', 'detail_description_fallback']), seller_name: pick(['detail_seller', 'detail_seller_fallback']), seller_url: pick(['detail_seller_url', 'detail_seller_url_fallback'], true), posted_at: pick(['detail_posted_date', 'detail_posted_date_fallback']) };
+  const imageUrl = image => image?.currentSrc || image?.src || image?.getAttribute('data-src') || image?.getAttribute('data-original') || '';
+  const detailImages = ['detail_image', 'detail_image_fallback'].flatMap(name => [...document.querySelectorAll(selectors[name])]).map(imageUrl).filter(Boolean);
+  const productImages = Array.isArray(product?.image) ? product.image : product?.image ? [product.image] : [];
+  return { external_id: product?.sku ? String(product.sku) : null, description: {$this->descriptionExtractorExpression()}, image_urls: [...new Set([...detailImages, ...productImages])], seller_name: pick(['detail_seller', 'detail_seller_fallback']), seller_url: pick(['detail_seller_url', 'detail_seller_url_fallback'], true), posted_at: pick(['detail_posted_date', 'detail_posted_date_fallback']) };
 }
 JS;
     }
@@ -261,12 +272,21 @@ JS;
     /** @return array<string, string> */
     private function selectorMap(): array
     {
-        return ['listing_item' => OlxSelectors::LISTING_ITEM, 'listing_item_fallback' => OlxSelectors::LISTING_ITEM_FALLBACK, 'listing_title' => OlxSelectors::LISTING_TITLE, 'listing_title_fallback' => OlxSelectors::LISTING_TITLE_FALLBACK, 'listing_url' => OlxSelectors::LISTING_URL, 'listing_url_fallback' => OlxSelectors::LISTING_URL_FALLBACK, 'listing_price' => OlxSelectors::LISTING_PRICE, 'listing_price_fallback' => OlxSelectors::LISTING_PRICE_FALLBACK, 'listing_location' => OlxSelectors::LISTING_LOCATION, 'listing_location_fallback' => OlxSelectors::LISTING_LOCATION_FALLBACK, 'listing_image' => OlxSelectors::LISTING_IMAGE, 'listing_image_fallback' => OlxSelectors::LISTING_IMAGE_FALLBACK, 'listing_promoted' => OlxSelectors::LISTING_PROMOTED, 'listing_urgent' => OlxSelectors::LISTING_URGENT, 'listing_negotiable' => OlxSelectors::LISTING_NEGOTIABLE, 'detail_description' => OlxSelectors::DETAIL_DESCRIPTION, 'detail_description_fallback' => OlxSelectors::DETAIL_DESCRIPTION_FALLBACK, 'detail_seller' => OlxSelectors::DETAIL_SELLER, 'detail_seller_fallback' => OlxSelectors::DETAIL_SELLER_FALLBACK, 'detail_seller_url' => OlxSelectors::DETAIL_SELLER_URL, 'detail_seller_url_fallback' => OlxSelectors::DETAIL_SELLER_URL_FALLBACK, 'detail_posted_date' => OlxSelectors::DETAIL_POSTED_DATE, 'detail_posted_date_fallback' => OlxSelectors::DETAIL_POSTED_DATE_FALLBACK];
+        return ['listing_item' => OlxSelectors::LISTING_ITEM, 'listing_item_fallback' => OlxSelectors::LISTING_ITEM_FALLBACK, 'listing_title' => OlxSelectors::LISTING_TITLE, 'listing_title_fallback' => OlxSelectors::LISTING_TITLE_FALLBACK, 'listing_url' => OlxSelectors::LISTING_URL, 'listing_url_fallback' => OlxSelectors::LISTING_URL_FALLBACK, 'listing_price' => OlxSelectors::LISTING_PRICE, 'listing_price_fallback' => OlxSelectors::LISTING_PRICE_FALLBACK, 'listing_location' => OlxSelectors::LISTING_LOCATION, 'listing_location_fallback' => OlxSelectors::LISTING_LOCATION_FALLBACK, 'listing_image' => OlxSelectors::LISTING_IMAGE, 'listing_image_fallback' => OlxSelectors::LISTING_IMAGE_FALLBACK, 'listing_promoted' => OlxSelectors::LISTING_PROMOTED, 'listing_urgent' => OlxSelectors::LISTING_URGENT, 'listing_negotiable' => OlxSelectors::LISTING_NEGOTIABLE, 'detail_description' => OlxSelectors::DETAIL_DESCRIPTION, 'detail_description_fallback' => OlxSelectors::DETAIL_DESCRIPTION_FALLBACK, 'detail_image' => OlxSelectors::DETAIL_IMAGE, 'detail_image_fallback' => OlxSelectors::DETAIL_IMAGE_FALLBACK, 'detail_seller' => OlxSelectors::DETAIL_SELLER, 'detail_seller_fallback' => OlxSelectors::DETAIL_SELLER_FALLBACK, 'detail_seller_url' => OlxSelectors::DETAIL_SELLER_URL, 'detail_seller_url_fallback' => OlxSelectors::DETAIL_SELLER_URL_FALLBACK, 'detail_posted_date' => OlxSelectors::DETAIL_POSTED_DATE, 'detail_posted_date_fallback' => OlxSelectors::DETAIL_POSTED_DATE_FALLBACK];
     }
 
     private function processImageUrls(array $imageUrls): array
     {
+        if (! config('crawler.extract_images', true)) {
+            return [];
+        }
+
         return array_values(array_unique(array_filter(array_map(fn (mixed $url): ?string => is_string($url) && ! str_contains($url, 'placeholder') && ! str_contains($url, 'default') && ! str_contains($url, 'no-image') ? ParsedListing::normalizeUrl($url) : null, $imageUrls))));
+    }
+
+    private function descriptionExtractorExpression(): string
+    {
+        return config('crawler.extract_description', true) ? "pick(['detail_description', 'detail_description_fallback'])" : 'null';
     }
 
     private function throttleRequest(): void

@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Jobs\DownloadDealMedia;
 use App\Models\Deal;
 use App\Models\DealSnapshot;
 use App\Models\HuntedDeal;
 use App\Services\Crawlers\ParsedListing;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Service for ingesting deals and managing snapshots
@@ -106,7 +109,7 @@ class DealIngestionService extends BaseService
      */
     public function upsertDeal(HuntedDeal $huntedDeal, ParsedListing $listing): array
     {
-        return DB::transaction(function () use ($huntedDeal, $listing) {
+        $result = DB::transaction(function () use ($huntedDeal, $listing) {
             $now = Carbon::now();
 
             // Find existing deal by external_id and hunted_deal_id
@@ -116,6 +119,7 @@ class DealIngestionService extends BaseService
 
             $isNew = $existingDeal === null;
             $snapshotCreated = false;
+            $imagesChanged = $isNew || $this->normalizeComparableValue($existingDeal->image_urls) !== $this->normalizeComparableValue($listing->imageUrls);
 
             if ($isNew) {
                 // Create new deal
@@ -149,8 +153,11 @@ class DealIngestionService extends BaseService
                         'confidence' => $classification->confidence,
                     ]);
                 } else {
-                    // No significant changes, just update last_seen_at
-                    $existingDeal->update(['last_seen_at' => $now]);
+                    // Image URLs are media state even when no other listing field changed.
+                    $existingDeal->update([
+                        'image_urls' => $listing->imageUrls,
+                        'last_seen_at' => $now,
+                    ]);
 
                     $this->logDebug('Updated last_seen_at for unchanged deal', [
                         'deal_id' => $existingDeal->id,
@@ -161,11 +168,51 @@ class DealIngestionService extends BaseService
                 $deal = $existingDeal;
             }
 
+            if ($imagesChanged) {
+                $this->removeObsoleteMediaAfterCommit($deal, $listing->imageUrls);
+            }
+
+            if ($imagesChanged && $listing->imageUrls !== []) {
+                DB::afterCommit(fn (): mixed => DownloadDealMedia::dispatch($deal->id));
+            }
+
             return [
                 'deal' => $deal,
                 'is_new' => $isNew,
                 'snapshot_created' => $snapshotCreated,
+                'images_changed' => $imagesChanged,
             ];
+        });
+
+        return $result;
+    }
+
+    /**
+     * Delete media no longer referenced by a listing after its transaction is durable.
+     *
+     * @param  array<int, mixed>  $imageUrls
+     */
+    private function removeObsoleteMediaAfterCommit(Deal $deal, array $imageUrls): void
+    {
+        $sourceHashes = collect($imageUrls)
+            ->filter(fn (mixed $url): bool => is_string($url))
+            ->map(fn (string $url): string => hash('sha256', $url))
+            ->all();
+
+        DB::afterCommit(function () use ($deal, $sourceHashes): void {
+            $media = $deal->media()
+                ->when($sourceHashes !== [], fn ($query) => $query->whereNotIn('source_hash', $sourceHashes))
+                ->get();
+
+            foreach ($media as $item) {
+                Cache::lock("deal-media:{$deal->id}:{$item->source_hash}", 120)->block(5, function () use ($item): void {
+                    if ($item->path && Storage::disk($item->disk)->exists($item->path)) {
+                        Storage::disk($item->disk)->delete($item->path);
+                    }
+
+                    $item->delete();
+                });
+            }
         });
     }
 

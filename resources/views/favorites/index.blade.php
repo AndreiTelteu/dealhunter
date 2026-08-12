@@ -28,7 +28,9 @@
                             @php($deal = $favorite->deal)
                             <article class="group border-b border-hairline py-4 transition-colors hover:bg-bench/60">
                                 <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-center lg:gap-8">
-                                    <div class="min-w-0">
+                                    <div class="flex min-w-0 gap-4">
+                                         <x-deal-media-gallery :deal="$deal" />
+                                        <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                                             <x-favorite-button :deal="$deal" />
                                             <a href="{{ route('deals.show', $deal) }}" class="focus-ring rounded-sm font-sans font-semibold text-[#eaf4f6] transition-colors group-hover:text-beam">
@@ -49,6 +51,7 @@
                                             adăugat la favorite {{ $favorite->created_at->diffForHumans() }} &middot;
                                             căutare: <a href="{{ route('hunted-deals.show', $deal->huntedDeal) }}" class="text-beam hover:underline">{{ $deal->huntedDeal->search_term }}</a>
                                         </p>
+                                        </div>
                                     </div>
                                     <div class="flex items-end justify-between gap-5 lg:flex-col lg:items-end lg:gap-3">
                                         <div class="text-right">

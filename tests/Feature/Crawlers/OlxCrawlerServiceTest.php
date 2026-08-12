@@ -108,4 +108,46 @@ class OlxCrawlerServiceTest extends TestCase
 
         $this->assertSame('kO6iL', $listing->externalId);
     }
+
+    public function test_it_preserves_full_descriptions_and_all_detail_images(): void
+    {
+        config()->set([
+            'crawler.enabled' => true,
+            'crawler.terms_acknowledged' => true,
+            'crawler.allowed_windows' => '',
+            'crawler.request_delay_ms' => 0,
+            'crawler.burst_limit' => 100,
+        ]);
+
+        $mcp = $this->createMock(PlaywrightMcpClient::class);
+        $mcp->expects($this->once())->method('ensureInitialized');
+        $mcp->expects($this->exactly(2))->method('navigate')->willReturn([]);
+        $mcp->expects($this->once())->method('closeSession');
+        $mcp->method('evaluate')->willReturnOnConsecutiveCalls(
+            [['title' => 'Listing', 'url' => 'https://www.olx.ro/d/oferta/listing-IDabc.html', 'price_raw' => '100 lei', 'location' => 'Bucuresti', 'image_urls' => ['https://frankfurt.apollo.olxcdn.com/card.jpg']]],
+            ['listing'],
+            false,
+            [
+                'description' => "Descriere completă\ncu două paragrafe.",
+                'image_urls' => [
+                    'https://frankfurt.apollo.olxcdn.com/one.jpg',
+                    'https://frankfurt.apollo.olxcdn.com/two.jpg',
+                    'https://frankfurt.apollo.olxcdn.com/three.jpg',
+                    'https://frankfurt.apollo.olxcdn.com/four.jpg',
+                ],
+            ],
+        );
+
+        $listings = (new OlxCrawlerService(app(PriceParserService::class), $mcp))->extractListings('laptop', 1);
+        $listing = (new OlxCrawlerService(app(PriceParserService::class), $this->createMock(PlaywrightMcpClient::class)))->parseListingData($listings[0]);
+
+        $this->assertSame("Descriere completă\ncu două paragrafe.", $listing->description);
+        $this->assertSame([
+            'https://frankfurt.apollo.olxcdn.com/one.jpg',
+            'https://frankfurt.apollo.olxcdn.com/two.jpg',
+            'https://frankfurt.apollo.olxcdn.com/three.jpg',
+            'https://frankfurt.apollo.olxcdn.com/four.jpg',
+            'https://frankfurt.apollo.olxcdn.com/card.jpg',
+        ], $listing->imageUrls);
+    }
 }

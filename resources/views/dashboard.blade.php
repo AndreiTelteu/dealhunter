@@ -175,7 +175,9 @@
                         @foreach($recentDeals as $deal)
                             <div class="group border-b border-hairline py-4 transition-colors hover:bg-bench/60">
                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                                    <div class="min-w-0 flex-1">
+                                    <div class="flex min-w-0 flex-1 gap-4">
+                                        <x-deal-media-gallery :deal="$deal" />
+                                        <div class="min-w-0 flex-1">
                                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                                             <x-favorite-button :deal="$deal" />
                                             <a href="{{ route('deals.show', $deal) }}" class="focus-ring rounded-sm font-sans font-semibold text-[#eaf4f6] group-hover:text-beam transition-colors break-words">
@@ -206,6 +208,7 @@
                                         <p class="mt-1 text-sm text-dim break-words">
                                             Căutare: <span class="text-dim">{{ $deal->huntedDeal->search_term }}</span>
                                         </p>
+                                        </div>
                                     </div>
                                     <div class="flex shrink-0 items-center gap-4 sm:gap-5">
                                         <a href="{{ route('deals.show', $deal) }}" class="rail-link focus-ring rounded-sm pb-0.5 border-b text-[0.65rem]">Detalii</a>

@@ -71,6 +71,10 @@ class OlxSelectors
 
     public const DETAIL_DESCRIPTION_FALLBACK = '.offer-description, .description-text, .ad-description';
 
+    public const DETAIL_IMAGE = '[data-testid="swiper-image"] img, [data-testid="gallery-image"] img, [data-testid="ad-photo"] img';
+
+    public const DETAIL_IMAGE_FALLBACK = '.swiper-slide img, .gallery img, .offer-photo img, [class*="gallery"] img';
+
     public const DETAIL_SELLER = '[data-testid="seller-info"] [data-testid="seller-name"], [data-testid="seller-name"]';
 
     public const DETAIL_SELLER_FALLBACK = '.seller-info .seller-name, .user-info a, .contact-info a, .seller-name';

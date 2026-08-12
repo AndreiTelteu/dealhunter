@@ -44,7 +44,6 @@
             $midPrice = $minPrice + $priceRange / 2;
             $yFor = fn ($value) => round($padTop + (1 - (($value - $minPrice) / $priceRange)) * $innerHeight, 1);
         }
-        $imageUrls = $currentDeal->image_urls ?? $deal->image_urls ?? [];
     @endphp
 
     <x-slot name="header">
@@ -193,7 +192,7 @@
             <div class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
                 <div class="space-y-8">
                     @if($currentDeal->description)
-                        <section class="border border-hairline bg-bench px-5 py-5" aria-labelledby="description-heading"><p class="placard text-[0.6rem]">Descriere OLX</p><h3 id="description-heading" class="sr-only">Descriere</h3><p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-dim" style="max-width:72ch">{{ $currentDeal->description }}</p></section>
+                        <section class="border border-hairline bg-bench px-5 py-5" aria-labelledby="description-heading"><p class="placard text-[0.6rem]">Descriere OLX</p><h3 id="description-heading" class="sr-only">Descriere</h3><div class="mt-3 whitespace-pre-line text-sm leading-relaxed text-dim" style="max-width:72ch">{{ $currentDeal->description }}</div></section>
                     @endif
 
                     @if($deal->snapshots->count() > 0)
@@ -212,9 +211,7 @@
                 </div>
 
                 <aside class="space-y-8">
-                    @if(count($imageUrls) > 0)
-                        <section class="border border-hairline bg-bench p-4" aria-labelledby="media-heading"><p class="placard text-[0.6rem]">Media</p><h3 id="media-heading" class="sr-only">Imagini OLX</h3><div class="mt-3 grid grid-cols-2 gap-px bg-hairline">@foreach(array_slice($imageUrls, 0, 6) as $imageUrl)<a href="{{ $imageUrl }}" target="_blank" rel="noopener" class="aspect-square bg-[#06080a]"><img src="{{ $imageUrl }}" alt="Imagine anunț" class="h-full w-full object-cover" onerror="this.remove()"></a>@endforeach</div>@if(count($imageUrls) > 6)<p class="mt-2 font-mono text-[0.65rem] text-dim/70">+{{ count($imageUrls) - 6 }} imagini</p>@endif</section>
-                    @endif
+                    <section class="border border-hairline bg-bench p-4" aria-labelledby="media-heading"><p class="placard text-[0.6rem]">Media</p><h3 id="media-heading" class="sr-only">Imagini OLX</h3><x-deal-media-gallery :deal="$deal" mode="gallery" /></section>
 
                     <section class="border border-hairline bg-bench px-5 py-5" aria-labelledby="metadata-heading">
                         <p class="placard text-[0.6rem]">Date anunț</p>

@@ -19,7 +19,7 @@ class FavoriteController extends Controller
         $user = Auth::user();
 
         $favorites = $user->favorites()
-            ->with(['deal.huntedDeal', 'deal.latestSnapshot'])
+            ->with(['deal.huntedDeal', 'deal.latestSnapshot', 'deal.media'])
             ->latest()
             ->paginate(20);
 
