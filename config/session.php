@@ -22,6 +22,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | Determines how session payloads are serialized. The Laravel 13 skeleton
+    | defaults to "json", but this application keeps "php" to preserve active
+    | sessions across the upgrade (plan decision D1). The app only stores
+    | scalars/arrays in sessions, so PHP serialization is safe here.
+    |
+    */
+
+    'serialization' => env('SESSION_SERIALIZATION', 'php'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Lifetime
     |--------------------------------------------------------------------------
     |

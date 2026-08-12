@@ -45,11 +45,11 @@ Tick a box only when done **and verified**. One agent per phase unless the hando
 - [x] 0.5 Session/cache/Redis prefix compatibility decision made and recorded
 
 ### Phase 1 — Laravel 13 upgrade only (no Inertia)
-- [ ] 1.1 Composer constraints updated to Laravel 13 targets; dependencies resolved; lock diff reviewed
-- [ ] 1.2 All applicable upgrade-guide code/config/middleware changes applied
-- [ ] 1.3 Breeze/dev-tooling compatibility resolved (kept, upgraded, or removed — decision logged)
-- [ ] 1.4 Full verification gate green on Laravel 13, PHP suite passing with zero skips introduced
-- [ ] 1.5 Isolated green commit: framework upgrade only
+- [x] 1.1 Composer constraints updated to Laravel 13 targets; dependencies resolved; lock diff reviewed
+- [x] 1.2 All applicable upgrade-guide code/config/middleware changes applied
+- [x] 1.3 Breeze/dev-tooling compatibility resolved (kept, upgraded, or removed — decision logged)
+- [x] 1.4 Full verification gate green on Laravel 13, PHP suite passing with zero skips introduced
+- [x] 1.5 Isolated green commit: framework upgrade only
 
 ### Phase 2 — install and wire Inertia React
 - [ ] 2.1 Backend: `inertiajs/inertia-laravel` installed; `HandleInertiaRequests` middleware created and registered in `bootstrap/app.php`; root view `resources/views/app.blade.php` created
@@ -353,3 +353,37 @@ Append entries below. Format:
   - Phase 1 config tasks: add `serializable_classes` handling check and explicit `serialization => php` in `config/session.php`; pin the three prefix/cookie env values.
   - PHPUnit 12 may change deprecation/skipping output — re-baseline the "0 skips introduced" rule against the 47-test green run.
   - Pre-migration screenshots still owed (see deviation); capture before Phase 4 if the environment allows.
+
+### 2026-08-12 — Phase 1 — Laravel 13 upgrade agent (pi)
+- Done: Complete Phase 1 framework-only upgrade on `laravel-13-inertia` (started from `a36edc6`, clean tree confirmed). Composer constraints updated, resolved, lock diff reviewed; all applicable upgrade-guide changes applied; dev-tooling compatibility resolved; full gate green; isolated commit.
+- Versions resolved (exact):
+  - `laravel/framework` v13.25.0 (PHP constraint now `^8.3`; CLI is 8.5.0 — fine; `composer.json` root PHP constraint left at `^8.2` since framework itself enforces `^8.3`)
+  - `laravel/boost` v2.5.3, `laravel/tinker` v3.0.2, `phpunit/phpunit` 12.5.33 (target `^12.0` per plan/guide; PHPUnit 13.x exists but plan pins `^12.0`)
+  - `prism-php/prism` v0.100.1 — the ONLY Prism release allowing `laravel/framework ^13.0`; constraint raised from `^0.87.0` to `^0.100.1` (logged deviation, see below)
+  - `laravel/breeze` v2.4.2 (kept — supports `^13.0`, scaffolding stays), `laravel/pint` v1.30.5, `laravel/sail` v1.66.0, `laravel/pail` v1.2.7, `barryvdh/laravel-ide-helper` v3.7.0, `nesbot/carbon` 3.13.2, `laravel/serializable-closure` 2.0.15, `laravel/mcp` v0.9.3 (auto-resolved), `laravel/roster` v1.0.0 (new, pulled by boost 2)
+  - Symfony line 7.3 → 8.1 (mailer/routing/translation/var-dumper etc.); new `symfony/polyfill-php85` v1.41.0 + `php86`; `polyfill-php83` dropped. Guzzle 7.15.x, monolog 3.10.x. No security advisories (`composer audit` output).
+- Upgrade-guide changes applied (all deltas from Phase 0 re-read, re-checked at execution time):
+  1. CSRF: no direct `VerifyCsrfToken`/`ValidateCsrfToken` references anywhere (app, routes, tests, `bootstrap/app.php`) — framework's renamed `PreventRequestForgery` applies by default; nothing to rewrite.
+  2. Prefixes/cookie (D1): `.env` now pins `CACHE_PREFIX=olx-deal-hunter-cache-`, `REDIS_PREFIX=olx-deal-hunter-database-`, `SESSION_COOKIE=olx-deal-hunter-session` (values identical to pre-upgrade computed values — zero disruption). Same keys documented in tracked `.env.example` with comments. Runtime verification via tinker: all four values + `serialization=php` + `serializable_classes=false` resolve exactly as intended. **Production env must carry the same four values — the deploy agent must verify this; `.env` itself is gitignored.**
+  3. Cache hardening: added `'serializable_classes' => false` to `config/cache.php` (app caches only scalars/strings: `HealthController` `'ok'`, `AiService` AI responses — verified). Hardcoded `false` like the skeleton, not `env()` (env strings would be truthy — deliberate choice).
+  4. Session: added `'serialization' => env('SESSION_SERIALIZATION', 'php')` to `config/session.php` per D1 (keeps PHP serialization, seamless sessions, blocks a future skeleton sync from silently flipping to `json`). `.env.example` documents the key.
+  5. `upsert()`: none in app code (confirmed in Phase 0) — no impact.
+  6. Queue events: no listeners; jobs (`RunDealCrawl`, `DownloadDealMedia`, `ReclassifyHuntedDealIntent`) pass scalar/int IDs only — delta (c) eager-load restoration irrelevant.
+  7–9. No custom cache stores, queue drivers, dispatcher/ResponseFactory implementations, MustVerifyEmail implementations, Manager `extend()` callbacks, domain routes, custom pivots, model-boot nesting, or Bootstrap-3 pagination references. `Paginator::useTailwind()` unaffected. No `Str` factories in tests. No password-reset-subject assertions. `Js::from` unicode change: only used in two Blade pages slated for Phase 4 replacement, no test comparisons.
+  - Pre-existing Phase 0 noise (`PDO::MYSQL_ATTR_SSL_CA` deprecation from Laravel 12 vendor config) is GONE on Laravel 13 — confirmed.
+- Deviation (logged per rules): `prism-php/prism` constraint changed `^0.87.0` → `^0.100.1`. The plan said to resolve remaining packages through Composer's solver and named only Breeze as a possible removal candidate, but `^0.87` hard-blocks Laravel 13 resolution (requires framework `^11|^12`; solver confirmed the conflict) and no 0.87/0.88/0.89 release supports 13 — `v0.100.1` is the first (and only) L13-compatible Prism. Risk assessment: Prism has ZERO direct usage in app code (`AiService` calls the OpenAI-compatible API via `Http` directly; no `use Prism` anywhere in `app/`, `config/`, `routes/`, `tests/`), so the jump is low-risk. Removing Prism instead was the other option, but the package is installed/configured at the platform level (MCP `PrismServer` provider registration) and keeping it honors "don't change dependencies beyond what the plan authorizes" more conservatively than removal. If the platform team later needs Prism APIs, re-audit the 0.87 → 0.100 changelog then.
+- Breeze decision (1.3): KEPT at `^2.3` (resolved v2.4.2). It supports Laravel 13 and the published auth scaffolding remains the codebase's own code — no blocker, no removal needed.
+- Verification gate (Phase 1.4), all green:
+  1. `vendor/bin/pint --dirty` → passed.
+  2. `vendor/bin/phpunit` → **OK, 47 tests / 114 assertions, 0 failures, 0 errors, 0 skips, 0 notices, 0 deprecations** (PHPUnit 12.5.33). Baseline comparison: same 47 tests/114 assertions as Phase 0; the 2 pre-existing PHP deprecations are gone; zero skips introduced. One PHPUnit 12 behavioral change fixed: 3 `OlxCrawlerServiceTest` tests triggered "No expectations were configured for the mock object" notices (new in PHPUnit 12) — resolved with class-level `#[AllowMockObjectsWithoutExpectations]` attribute (PHPUnit 12 API; no test logic changed).
+  3. `npm run build` → green, 92 modules. Note: second CSS chunk is 51.98 kB vs 51.04 kB in Phase 0 with NO frontend source changes — cause: `tailwind.config.js` scans `vendor/laravel/framework/.../Pagination/resources/views/*.blade.php` and Laravel 13's shipped pagination views contain slightly more utility classes. Cosmetic; no app view changed. If the Phase 2/3 agent wants, the pagination content glob could be narrowed to `resources/views` only.
+  4. `php artisan route:list` → green, 46 routes + `/up` (47 listed lines), same route surface as Phase 0.
+  5. `php artisan migrate:status`: MySQL `lerd-mysql` unresolvable from this CLI (unchanged since Phase 0) — established safe evidence used instead: (a) fresh scratch SQLite `/tmp/dealhunter_l13_phase1.sqlite`: `php artisan migrate` + `migrate:status` → all 18 migrations ran cleanly under Laravel 13; (b) all 47 tests apply every migration against in-memory SQLite. No destructive operation against the app DB.
+- Files changed in this commit: `composer.json`, `composer.lock`, `config/session.php` (+serialization), `config/cache.php` (+serializable_classes), `.env.example` (D1 pins documented), `tests/Feature/Crawlers/OlxCrawlerServiceTest.php` (PHPUnit 12 attribute), this plan file. `.env` changes are local/gitignored (per D1 the deploy agent must ensure production carries the same values).
+- Next agent must know (Phase 2):
+  - Laravel 13.25.0 is live on this branch; framework `^13.0` in `composer.json`.
+  - Re-verify `inertiajs/inertia-laravel` ^3.x Laravel-13 support in its composer constraints at install time (plan already mandates this). Current `laravel/framework` in the app is 13.25.0.
+  - Tailwind is still v3; `@tailwindcss/vite` v4 still in `package.json` unused (Phase 2.3 removal per D3). Second CSS chunk size bump above is the vendor-pagination scan, not a source change.
+  - D1 values are pinned in `.env` and `.env.example`; production env must match (deploy checklist item).
+  - Pre-migration screenshots still owed (Phase 0 deviation) — capture before Phase 4 if the environment allows.
+  - PHPUnit is now 12.x; new tests may use PHPUnit 12 attributes/APIs. Zero notices is the new clean baseline.
