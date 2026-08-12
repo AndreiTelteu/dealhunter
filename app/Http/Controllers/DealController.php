@@ -3,20 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deal;
+use App\Models\DealMedia;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class DealController extends Controller
 {
     /**
      * Display a listing of deals with filtering and pagination.
      */
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
         /** @var User $user */
         $user = Auth::user();
@@ -31,8 +36,8 @@ class DealController extends Controller
         if ($request->filled('search')) {
             $searchTerm = $request->get('search');
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'ILIKE', "%{$searchTerm}%")
-                    ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
+                $q->whereLike('title', "%{$searchTerm}%")
+                    ->orWhereLike('description', "%{$searchTerm}%");
             });
         }
 
@@ -83,7 +88,107 @@ class DealController extends Controller
         // Get filter counts for display
         $filterCounts = $this->getFilterCounts($user, $huntedDealId);
 
-        return view('deals.index', compact('deals', 'filterCounts', 'matchesIntentFilter'));
+        $resolvedSort = in_array($sortBy, $allowedSorts) ? $sortBy : 'last_seen_at';
+        $resolvedDirection = $sortBy === $resolvedSort ? $sortDirection : 'desc';
+
+        return Inertia::render('Deals/Index', [
+            'deals' => [
+                'data' => $deals->through(fn (Deal $deal) => $this->serializeDeal($deal))->all(),
+                'links' => $deals->linkCollection()
+                    ->map(fn (array $link) => [
+                        'url' => $link['url'],
+                        'label' => $link['label'],
+                        'active' => (bool) $link['active'],
+                    ])
+                    ->all(),
+                'meta' => [
+                    'currentPage' => $deals->currentPage(),
+                    'lastPage' => $deals->lastPage(),
+                    'perPage' => $deals->perPage(),
+                    'total' => $deals->total(),
+                    'from' => $deals->firstItem(),
+                    'to' => $deals->lastItem(),
+                ],
+            ],
+            'filters' => [
+                'search' => $request->get('search'),
+                'sort' => $resolvedSort,
+                'direction' => $resolvedDirection,
+                'priceDrops' => $request->boolean('price_drops'),
+                'newItems' => $request->boolean('new_items'),
+                'matchesIntent' => $matchesIntentFilter,
+                'likelyWorking' => $request->boolean('likely_working'),
+                'huntedDeal' => $huntedDealId,
+                'hasActiveFilters' => $request->hasAny(['search', 'price_drops', 'new_items', 'matches_intent', 'likely_working']),
+            ],
+            'filterCounts' => [
+                'total' => $filterCounts['total'],
+                'newItems' => $filterCounts['new_items'],
+                'matchesIntent' => $filterCounts['matches_intent'],
+                'likelyWorking' => $filterCounts['likely_working'],
+                'priceDrops' => $filterCounts['price_drops'],
+            ],
+            'links' => [
+                'index' => route('deals.index'),
+                'reset' => route('deals.index', $huntedDealId ? ['hunted_deal' => $huntedDealId] : []),
+                'huntedDealsIndex' => route('hunted-deals.index'),
+                'huntedDealsCreate' => route('hunted-deals.create'),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize a deal for the deals index surface into an explicit,
+     * frontend-safe array (camelCase, URLs built server-side).
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeDeal(Deal $deal): array
+    {
+        $latestSnapshot = $deal->latestSnapshot;
+
+        return [
+            'id' => $deal->id,
+            'title' => Str::limit($deal->title, 100),
+            'matchesIntent' => (bool) $deal->matches_intent,
+            'intentScore' => $deal->intent_score,
+            'likelyWorking' => (bool) $deal->likely_working,
+            'description' => $deal->description !== null ? Str::limit($deal->description, 150) : null,
+            'isNew' => $deal->created_at->gte(now()->subDay()),
+            'priceAmount' => ($latestSnapshot?->price_amount ?? $deal->price_amount) !== null
+                ? (float) ($latestSnapshot?->price_amount ?? $deal->price_amount)
+                : null,
+            'priceCurrency' => $latestSnapshot?->price_currency ?? $deal->price_currency,
+            'location' => $deal->location,
+            'lastSeenAt' => $deal->last_seen_at?->diffForHumans(),
+            'snapshotsCount' => (int) $deal->snapshots_count,
+            'searchTerm' => $deal->huntedDeal?->search_term,
+            'huntedDealUrl' => $deal->huntedDeal ? route('hunted-deals.show', $deal->huntedDeal) : null,
+            'isFavorite' => (bool) $deal->is_favorite,
+            'media' => $this->serializeMedia($deal),
+            'showUrl' => route('deals.show', $deal),
+            'externalUrl' => $deal->url,
+            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
+        ];
+    }
+
+    /**
+     * Serialize downloaded local media for a deal. Remote URLs are never
+     * exposed, matching the Blade gallery behaviour.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function serializeMedia(Deal $deal): array
+    {
+        return $deal->media
+            ->filter(fn (DealMedia $media) => $media->path
+                && $media->downloaded_at !== null
+                && Storage::disk($media->disk)->exists($media->path))
+            ->values()
+            ->map(fn (DealMedia $media) => [
+                'url' => Storage::disk($media->disk)->url($media->path),
+            ])
+            ->all();
     }
 
     /**
