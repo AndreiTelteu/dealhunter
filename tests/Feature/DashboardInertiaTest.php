@@ -58,8 +58,17 @@ class DashboardInertiaTest extends TestCase
                 ->where('recentDeals.0.priceAmount', 1234.56)
                 ->where('recentDeals.0.priceCurrency', 'RON')
                 ->where('recentDeals.0.isFavorite', false)
+                ->where('recentDeals.0.searchTerm', 'laptop')
+                ->has('huntedDeals.0.showUrl')
+                ->has('huntedDeals.0.editUrl')
+                ->has('recentDeals.0.showUrl')
+                ->has('recentDeals.0.externalUrl')
+                ->has('recentDeals.0.toggleFavoriteUrl')
                 ->has('links.huntedDealsIndex')
-                ->has('links.dealsIndex'));
+                ->has('links.huntedDealsActive')
+                ->has('links.huntedDealsCreate')
+                ->has('links.dealsIndex')
+                ->has('links.newDealsIndex'));
     }
 
     public function test_dashboard_exposes_only_local_media_and_never_remote_urls(): void
