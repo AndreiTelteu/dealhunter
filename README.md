@@ -42,6 +42,46 @@ make shell
 
 `make dev` starts the services, runs migrations, and runs the default database seeder. Use `make down` to stop the development containers.
 
+## Frontend (Inertia + React)
+
+The UI is a single-page React application rendered server-side through Inertia. The stack is:
+
+- [Inertia.js](https://inertiajs.com/) v3 (`inertiajs/inertia-laravel` + `@inertiajs/react`) as the adapter between Laravel controllers and React.
+- React 19 with TypeScript (strict mode).
+- Vite 7 with `@vitejs/plugin-react` and `laravel-vite-plugin`.
+- Tailwind CSS 3 and `@tailwindcss/forms`.
+- `@fancyapps/ui` (Fancybox) for the deal media gallery.
+
+### How it works
+
+- The root template is `resources/views/app.blade.php`, which renders `@inertia` and loads the Vite entrypoints (`resources/css/app.css` and `resources/js/app.tsx`).
+- `resources/js/app.tsx` calls `createInertiaApp` and resolves pages automatically via `import.meta.glob('./pages/**/*.tsx')`. A page named `HuntedDeals/Index` maps to `resources/js/pages/HuntedDeals/Index.tsx`.
+- Controllers return `Inertia::render('Page/Name', [...])`; server-side data is shared through props (see `HandleInertiaRequests` and the `app/Http/Middleware` middleware stack).
+- `resources/js/routes.ts` holds a static path map (no Ziggy). Parameterized URLs are built server-side with `route()` and passed through props.
+
+### Running the frontend
+
+During development, run Vite in a separate terminal:
+
+```bash
+npm run dev
+```
+
+The Vite dev server hot-reloads pages, components, and Tailwind classes. Build production assets with:
+
+```bash
+npm run build
+```
+
+`composer dev` starts the Laravel server, queue worker, and Vite dev server together in one command.
+
+### Conventions
+
+- Pages live in `resources/js/pages/`, components in `resources/js/components/`, layouts in `resources/js/layouts/`, and shared types in `resources/js/types/`.
+- Use the `usePage()` / `useForm()` / `Link` helpers from `@inertiajs/react` for page data, forms, and navigation.
+- Keep route paths centralized in `resources/js/routes.ts`; pass dynamic URLs from controllers instead of interpolating them client-side.
+- Tailwind is configured in `tailwind.config.js`; global styles live in `resources/css/app.css`.
+
 ## Crawler Configuration
 
 Configure the MCP endpoint and token in `.env`:
