@@ -139,17 +139,31 @@ class FavoriteTest extends TestCase
         $deal = $this->createDealForUser($user);
         $user->favorites()->create(['deal_id' => $deal->id]);
 
-        $response = $this->actingAs($user)->get(route('favorites.index'));
-
-        $response->assertOk()->assertSee($deal->title);
+        $this->actingAs($user)
+            ->get(route('favorites.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Favorites/Index')
+                ->where('favorites.meta.total', 1)
+                ->where('favorites.data.0.deal.title', $deal->title)
+                ->where('favorites.data.0.deal.isFavorite', true)
+                ->has('favorites.data.0.createdAt')
+                ->has('favorites.data.0.deal.showUrl')
+                ->has('favorites.data.0.deal.toggleFavoriteUrl')
+                ->has('links.dealsIndex'));
     }
 
     public function test_favorites_index_is_empty_without_favorites(): void
     {
         $user = $this->createUser('empty@example.com');
 
-        $response = $this->actingAs($user)->get(route('favorites.index'));
-
-        $response->assertOk()->assertSee('Nicio favorită încă');
+        $this->actingAs($user)
+            ->get(route('favorites.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Favorites/Index')
+                ->where('favorites.meta.total', 0)
+                ->where('favorites.data', [])
+                ->has('links.dealsIndex'));
     }
 }

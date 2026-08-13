@@ -30,7 +30,8 @@ export interface Deal {
     priceAmount: number | null;
     priceCurrency: string | null;
     location: string | null;
-    createdAt: string;
+    /** Human-diff of created_at; dashboard serializes it, deals/favorites omit it. */
+    createdAt?: string;
     /** Human-diff of last_seen_at, serialized on list surfaces. */
     lastSeenAt?: string | null;
     /** Snapshot count, serialized on the deals index surface. */
