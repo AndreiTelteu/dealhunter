@@ -85,16 +85,16 @@ Tick a box only when done **and verified**. One agent per phase unless the hando
 - [x] 4.10 Replaced Blade templates for the above deleted after reference search; verification gate green; commit(s)
 
 ### Phase 5 — migrate admin and auth surfaces
-- [ ] 5.1 Admin dashboard + feature tests
-- [ ] 5.2 Admin crawl logs list + detail + feature tests
-- [ ] 5.3 Admin system health + admin actions (POST redirects preserved) + feature tests
-- [ ] 5.4 Admin configuration forms (no secret leakage in props — test it) + feature tests
-- [ ] 5.5 Auth: login, register + feature tests
-- [ ] 5.6 Auth: forgot/reset password (signed URLs, throttle preserved) + feature tests
-- [ ] 5.7 Auth: confirm password, verify email (signed routes, resend throttle) + feature tests
-- [ ] 5.8 Public welcome page + guest/auth redirect behavior tests
-- [ ] 5.9 Access-matrix tests pass: guest / auth / verified / admin against protected URLs
-- [ ] 5.10 Replaced Blade templates deleted; verification gate green; commit(s)
+- [x] 5.1 Admin dashboard + feature tests
+- [x] 5.2 Admin crawl logs list + detail + feature tests
+- [x] 5.3 Admin system health + admin actions (POST redirects preserved) + feature tests
+- [x] 5.4 Admin configuration forms (no secret leakage in props — test it) + feature tests
+- [x] 5.5 Auth: login, register + feature tests
+- [x] 5.6 Auth: forgot/reset password (signed URLs, throttle preserved) + feature tests
+- [x] 5.7 Auth: confirm password, verify email (signed routes, resend throttle) + feature tests
+- [x] 5.8 Public welcome page + guest/auth redirect behavior tests
+- [x] 5.9 Access-matrix tests pass: guest / auth / verified / admin against protected URLs
+- [x] 5.10 Replaced Blade templates deleted; verification gate green; commit(s)
 
 ### Phase 6 — remove Blade UI, cleanup, stabilize
 - [ ] 6.1 Repository-wide scan proves no user-facing `view(...)` / `Route::view` remains (only Inertia root + mail/error templates if any)
@@ -514,3 +514,13 @@ Append entries below. Format:
 - Deleted: `dashboard.blade.php`, `deals/{index,show}.blade.php`, `favorites/index.blade.php`, `hunted-deals/{index,create,edit,show}.blade.php`, `ai-classification/index.blade.php`, `profile/edit.blade.php`, `profile/partials/{update-profile-information-form,update-password-form,delete-user-form}.blade.php`. Empty dirs `deals/`, `favorites/`, `hunted-deals/`, `ai-classification/`, `profile/` removed by git.
 - Gate (all green except known MySQL host): `vendor/bin/pint --dirty` passed; `vendor/bin/phpunit` OK **130 tests / 1358 assertions**, 0 failures; `npx tsc --noEmit` clean; `npm run build` green (696 modules); `php artisan route:list` green; `php artisan migrate:status` vs. app MySQL still unreachable (`lerd-mysql`) — scratch SQLite evidence unchanged (18/18 Ran).
 - Next agent must know (Phase 5): Phase 4 is complete. Remaining Blade surface is exactly: `welcome.blade.php` (5.8), `auth/*` (5.5–5.7), `admin/*` (5.1–5.4), `layouts/{app,guest,navigation}.blade.php` + `components/**` (still shared by those pages until Phase 6), `vendor/pagination/*` (Phase 6.2). `serializeDeal`/`serializeMedia` are now duplicated in `DealController` + `FavoriteController` + `HuntedDealController` — extract a shared serializer during Phase 6 cleanup (noted across 4.4/4.7). The delete-account + logout flows redirect to `/` (Blade `welcome` until 5.8) — access-matrix tests in 5.9 should account for this transient non-Inertia redirect target.
+
+### 2026-08-13 — Phase 5 — admin + auth + welcome migration (orchestrator + subagent)
+- Done: Completed Phase 5. The page/controller/test migration for admin (dashboard, crawl-logs list + detail, system-health, configuration), auth (login, register, forgot/reset password, confirm password, verify email), and the public welcome page was authored in the prior working commit `d2c23c8`; this phase closed the loop by fixing the remaining test failures, deleting the replaced Blade templates (5.10), and updating the tracker.
+- Code fixes applied this phase (3 test failures resolved):
+  1. `tests/Feature/AdminInertiaTest.php` `crawlLog.successRate` assertion changed `100.0` → `100` (Inertia props are JSON round-tripped; a whole-number float `100.0` serializes to int `100`).
+  2. `tests/Feature/AdminInertiaTest.php` `healthHistory` closure changed `is_array($history)` → `$history instanceof Illuminate\Support\Collection` (Inertia `where()` wraps array props in a Collection, so `is_array` always returns false — latent bug masked until the TypeError below was fixed).
+  3. `app/Services/SystemHealthService.php` `checkCrawlerHealth()`: added a `crawler.mcp_playwright_endpoint` guard mirroring `checkMcpConnection()` (returns `critical` when endpoint null/missing `/mcp` path) and changed `catch (\Exception)` → `catch (\Throwable)`. Previously a null endpoint (set by the tests to simulate an unconfigured crawler) caused `McpClient::__construct(string $endpoint)` to throw a `TypeError`, which extends `Error` not `Exception`, so it was uncaught and 500'd the system-health page and the run-health-check action.
+- 5.10 Blade cleanup: reference search (`view('welcome')` / `view('auth.` / `view('admin.` / `x-admin`) found zero usages (all controllers use `Inertia::render`). Deleted 13 files: `welcome.blade.php`, `auth/*` (6), `admin/*` (5), `components/admin/partials/status.blade.php`. Empty dirs `auth/`, `admin/`, `components/admin/` removed.
+- Gate (all green except known MySQL host): `vendor/bin/pint --dirty` passed; `vendor/bin/phpunit` OK **158 tests / 1708 assertions**, 0 failures/errors/skips; `npx tsc --noEmit` clean; `npm run build` green (711 modules; pre-existing browserslist + 505 kB chunk warnings only); `php artisan route:list` green; `migrate:status` vs. app MySQL still unreachable (`lerd-mysql`) — scratch SQLite `migrate` + `migrate:status` = 18/18 Ran.
+- Next agent must know (Phase 6): Remaining Blade surface is exactly `resources/views/app.blade.php` (Inertia root — KEEP), `layouts/{app,guest,navigation}.blade.php`, the remaining `components/**` (application-logo, auth-session-status, danger-button, deal-media-gallery, dropdown, dropdown-link, favorite-button, input-error, input-label, modal, nav-link, phrase-tag-input, primary-button, responsive-nav-link, secondary-button, spectrum-line, stat-card, text-input), `vendor/pagination/*` (6 files), and the now-orphaned `app/View/Components/{AppLayout,GuestLayout}.php` classes. `checkCrawlerHealth()` now reports `critical` whenever `crawler.mcp_playwright_endpoint` is unset or lacks `/mcp` (intended); the other three health-check methods still catch only `\Exception` — consider `\Throwable` hardening if their `app(...)` resolution can throw Errors in Phase 6. Inertia test gotcha: `->where($key, $closure)` receives a `Collection`, not a raw array.

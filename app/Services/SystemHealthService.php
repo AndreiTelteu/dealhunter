@@ -124,6 +124,14 @@ class SystemHealthService
      */
     public function checkCrawlerHealth(): SystemHealth
     {
+        $endpoint = config('crawler.mcp_playwright_endpoint');
+
+        if (! $endpoint || parse_url($endpoint, PHP_URL_PATH) !== '/mcp') {
+            return $this->recordHealthCheck('crawler', 'critical', 'Crawler endpoint not configured', null, [
+                'endpoint' => $endpoint,
+            ]);
+        }
+
         try {
             // Check if crawler service can be instantiated
             $crawler = app(OlxCrawlerService::class);
@@ -160,7 +168,7 @@ class SystemHealthService
                 'crawler_class' => get_class($crawler),
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return $this->recordHealthCheck('crawler', 'critical', 'Crawler service error: '.$e->getMessage(), null, [
                 'error' => $e->getMessage(),
             ]);

@@ -6,6 +6,7 @@ use App\Jobs\RunDealCrawl;
 use App\Models\CrawlLog;
 use App\Models\SystemHealth;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -178,7 +179,7 @@ class AdminInertiaTest extends TestCase
                 ->where('crawlLog.newDealsCreated', 10)
                 ->where('crawlLog.dealsUpdated', 4)
                 ->where('crawlLog.snapshotsCreated', 40)
-                ->where('crawlLog.successRate', 100.0)
+                ->where('crawlLog.successRate', 100)
                 ->where('crawlLog.errors', ['Connection timed out'])
                 ->where('crawlLog.configuration.0.key', 'max_pages_per_search')
                 ->where('crawlLog.configuration.0.value', '3')
@@ -210,7 +211,7 @@ class AdminInertiaTest extends TestCase
                 ->has('overallHealth.summary.unknown')
                 ->has('overallHealth.lastCheckLabel')
                 ->where('healthResults', fn ($results) => count($results) === 4)
-                ->where('healthHistory', fn ($history) => is_array($history))
+                ->where('healthHistory', fn ($history) => $history instanceof Collection)
                 ->has('links.dashboard')
                 ->has('links.runHealthCheck')
                 ->has('links.cleanupLogs'));
