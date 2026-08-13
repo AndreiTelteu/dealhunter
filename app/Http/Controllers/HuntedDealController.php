@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ReclassifyHuntedDealIntent;
 use App\Models\HuntedDeal;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -128,15 +129,20 @@ class HuntedDealController extends Controller
     /**
      * Show the form for creating a new hunted deal.
      */
-    public function create()
+    public function create(): Response
     {
-        return view('hunted-deals.create');
+        return Inertia::render('HuntedDeals/Create', [
+            'links' => [
+                'store' => route('hunted-deals.store'),
+                'index' => route('hunted-deals.index'),
+            ],
+        ]);
     }
 
     /**
      * Store a newly created hunted deal in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'search_term' => ['required', 'string', 'max:255'],
@@ -154,9 +160,7 @@ class HuntedDealController extends Controller
             ->first();
 
         if ($existingHuntedDeal) {
-            return back()
-                ->withInput()
-                ->withErrors(['search_term' => 'You already have a hunted deal with this search term.']);
+            return back()->withErrors(['search_term' => 'You already have a hunted deal with this search term.']);
         }
 
         $validated['user_id'] = Auth::id();
@@ -286,20 +290,50 @@ class HuntedDealController extends Controller
     /**
      * Show the form for editing the specified hunted deal.
      */
-    public function edit(HuntedDeal $huntedDeal)
+    public function edit(HuntedDeal $huntedDeal): Response
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {
             abort(404);
         }
 
-        return view('hunted-deals.edit', compact('huntedDeal'));
+        return Inertia::render('HuntedDeals/Edit', [
+            'huntedDeal' => $this->serializeHuntedDealForm($huntedDeal),
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'update' => route('hunted-deals.update', $huntedDeal),
+                'destroy' => route('hunted-deals.destroy', $huntedDeal),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize a hunted deal for the create/edit form surfaces.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDealForm(HuntedDeal $huntedDeal): array
+    {
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes,
+            'excludedPhrases' => $huntedDeal->excluded_phrases ?? [],
+            'preferredPhrases' => $huntedDeal->preferred_phrases ?? [],
+            'dealsCount' => (int) $huntedDeal->deals()->count(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y, H:i'),
+            'updatedAt' => $huntedDeal->updated_at->format('d M Y, H:i'),
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->format('d M Y, H:i'),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+        ];
     }
 
     /**
      * Update the specified hunted deal in storage.
      */
-    public function update(Request $request, HuntedDeal $huntedDeal)
+    public function update(Request $request, HuntedDeal $huntedDeal): RedirectResponse
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {
@@ -396,7 +430,7 @@ class HuntedDealController extends Controller
     /**
      * Remove the specified hunted deal from storage.
      */
-    public function destroy(HuntedDeal $huntedDeal)
+    public function destroy(HuntedDeal $huntedDeal): RedirectResponse
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {

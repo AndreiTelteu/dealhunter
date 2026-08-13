@@ -15,6 +15,8 @@ interface PhraseTagInputProps {
     tone?: PhraseTone;
     /** Server validation messages for this field (e.g. from `useForm().errors`). */
     errors?: string | string[];
+    /** Emitted with the full tag list after any add/remove, for `useForm.setData`. */
+    onChange?: (tags: string[]) => void;
 }
 
 const ACCENT_CLASSES: Record<PhraseTone, string> = {
@@ -46,6 +48,7 @@ export default function PhraseTagInput({
     values,
     tone = 'beam',
     errors,
+    onChange,
 }: PhraseTagInputProps): ReactElement {
     const initialTags = useMemo(() => normalizeInitial(values), [values]);
     const [tags, setTags] = useState<string[]>(initialTags);
@@ -54,34 +57,37 @@ export default function PhraseTagInput({
     const hintId = `${name}_hint`;
     const errorId = useId();
 
+    const commitTags = (next: string[]): void => {
+        setTags(next);
+        onChange?.(next);
+    };
+
     const addDraft = (): void => {
         if (draft.trim() === '') {
             return;
         }
 
-        setTags((current) => {
-            const phrases = draft
-                .split(',')
-                .map((phrase) => phrase.trim())
-                .filter((phrase) => phrase !== '');
+        const phrases = draft
+            .split(',')
+            .map((phrase) => phrase.trim())
+            .filter((phrase) => phrase !== '');
 
-            const merged = [...current];
+        const merged = [...tags];
 
-            phrases.forEach((phrase) => {
-                const exists = merged.some((tag) => tag.toLocaleLowerCase() === phrase.toLocaleLowerCase());
+        phrases.forEach((phrase) => {
+            const exists = merged.some((tag) => tag.toLocaleLowerCase() === phrase.toLocaleLowerCase());
 
-                if (!exists) {
-                    merged.push(phrase);
-                }
-            });
-
-            return merged;
+            if (!exists) {
+                merged.push(phrase);
+            }
         });
+
+        commitTags(merged);
         setDraft('');
     };
 
     const removeTag = (index: number): void => {
-        setTags((current) => current.filter((_, i) => i !== index));
+        commitTags(tags.filter((_, i) => i !== index));
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
