@@ -225,34 +225,202 @@ export interface FavoriteToggleResponse {
 /* Admin surfaces                                                      */
 /* ------------------------------------------------------------------ */
 
-export interface CrawlLog {
+export type CrawlLogStatus = 'started' | 'completed' | 'failed' | 'partial';
+
+export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown';
+
+/** Recent crawl statistics block (dashboard). */
+export interface CrawlStats {
+    totalCrawls: number;
+    successfulCrawls: number;
+    failedCrawls: number;
+    partialSuccessCrawls: number;
+    totalListingsFound: number;
+    totalDealsCreated: number;
+    totalDealsUpdated: number;
+    totalSnapshotsCreated: number;
+    averageDurationMs: number | null;
+    averageSuccessRate: number | null;
+    /** ISO-8601 of the most recent crawl start, or null when none. */
+    lastCrawlAt: string | null;
+}
+
+/** Per-status counts across the monitored components. */
+export interface HealthSummary {
+    healthy: number;
+    warning: number;
+    critical: number;
+    unknown: number;
+    total: number;
+}
+
+/** Overall system health readout (dashboard + system-health). */
+export interface SystemHealthOverview {
+    overallStatus: HealthStatus;
+    summary: HealthSummary;
+    /** Human-diff of the latest check across components, or null. */
+    lastCheckLabel: string | null;
+}
+
+/** One component readout in the dashboard alignment strip. */
+export interface SystemComponentHealth {
+    name: string;
+    status: HealthStatus;
+    message: string | null;
+    responseTimeMs: number | null;
+}
+
+/** A compact crawl row in the dashboard "recent crawls" strip. */
+export interface RecentCrawl {
     id: number;
-    type: string;
-    status: string;
-    startedAt: string;
-    completedAt: string | null;
-    durationMs: number | null;
-    formattedDuration: string;
-    huntedDealsProcessed: number;
-    huntedDealsFailed: number;
+    typeLabel: string;
+    status: CrawlLogStatus;
+    totalErrors: number;
+    startedAtLabel: string;
     totalListingsFound: number;
     newDealsCreated: number;
-    dealsUpdated: number;
-    snapshotsCreated: number;
-    totalErrors: number;
-    successRate: number | null;
-    listingsPerSecond: number | null;
-    triggeredBy: string;
+    triggeredByLabel: string;
     userName: string | null;
     showUrl: string;
 }
 
+/** Crawler parameters readout (dashboard). */
+export interface CrawlerConfig {
+    maxPagesPerSearch: number | string;
+    requestDelayMs: number | string;
+    maxListingsPerRun: number | string;
+    mcpEndpoint: string | null;
+    aiClassificationEnabled: boolean;
+}
+
+/** Manual-crawl select option (dashboard). */
+export interface HuntedDealOption {
+    id: number;
+    label: string;
+}
+
+/** A crawl row in the crawl-logs ledger. */
+export interface CrawlLog {
+    id: number;
+    typeLabel: string;
+    status: CrawlLogStatus;
+    totalErrors: number;
+    startedAtDate: string;
+    startedAtTime: string;
+    formattedDuration: string;
+    huntedDealsProcessed: number;
+    huntedDealsFailed: number;
+    totalListingsFound: number;
+    listingsPerSecond: number | null;
+    newDealsCreated: number;
+    showUrl: string;
+    triggeredByLabel: string;
+    userName: string | null;
+}
+
+/** Filter state echoed back for the crawl-logs surface. */
+export interface CrawlLogsFilters {
+    status: string | null;
+    type: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    hasActiveFilters: boolean;
+}
+
+/** One key/value readout of the crawl-log stored configuration. */
+export interface CrawlLogConfigurationEntry {
+    key: string;
+    value: string;
+}
+
+/** Full serialized crawl log for the detail surface. */
+export interface CrawlLogDetail {
+    id: number;
+    typeLabel: string;
+    status: CrawlLogStatus;
+    totalErrors: number;
+    startedAtLabel: string;
+    completedAtLabel: string | null;
+    formattedDuration: string;
+    notes: string | null;
+    huntedDealsProcessed: number;
+    huntedDealsFailed: number;
+    totalListingsFound: number;
+    listingsPerSecond: number | null;
+    newDealsCreated: number;
+    dealsUpdated: number;
+    snapshotsCreated: number;
+    successRate: number | null;
+    /** Rounded duration/hunted_deals_processed, or null when not measurable. */
+    averageMsPerSearch: number | null;
+    errors: string[];
+    configuration: CrawlLogConfigurationEntry[];
+    triggeredByLabel: string;
+    userName: string | null;
+}
+
+/** One key/value diagnostic detail of a health check. */
+export interface HealthDetailEntry {
+    key: string;
+    value: string;
+}
+
+/** One component check on the system-health surface. */
 export interface SystemHealthCheck {
-    component: string;
-    status: 'healthy' | 'warning' | 'critical' | 'unknown';
+    name: string;
+    status: HealthStatus;
     message: string | null;
     responseTimeMs: number | null;
-    checkedAt: string;
+    checkedAtLabel: string;
+    details: HealthDetailEntry[];
+}
+
+/** One response-time bar in the 24h history strip. */
+export interface HealthHistoryBar {
+    /** Percentage height (min 5). */
+    height: number;
+    /** Hex color keyed on status. */
+    color: string;
+    /** Hover title "H:i: NNms". */
+    title: string;
+}
+
+/** Response-time history for a single component (only >1 check). */
+export interface HealthHistoryComponent {
+    component: string;
+    label: string;
+    bars: HealthHistoryBar[];
+    lastValueMs: number | null;
+}
+
+/** A raw config scalar/boolean/null value on the configuration surface. */
+export type AdminConfigValue = string | number | boolean | null;
+
+/** Read-only configuration groups (exact key set — no secrets). */
+export interface AdminConfig {
+    crawler: {
+        maxPagesPerSearch: AdminConfigValue;
+        requestDelayMs: AdminConfigValue;
+        maxListingsPerRun: AdminConfigValue;
+        mcpPlaywrightEndpoint: AdminConfigValue;
+        userAgent: AdminConfigValue;
+    };
+    features: {
+        aiClassificationEnabled: AdminConfigValue;
+        detailPageCrawling: AdminConfigValue;
+        imageUrlExtraction: AdminConfigValue;
+        sellerInfoExtraction: AdminConfigValue;
+    };
+    ai: {
+        provider: AdminConfigValue;
+        model: AdminConfigValue;
+        confidenceThreshold: AdminConfigValue;
+    };
+    currency: {
+        defaultCurrency: AdminConfigValue;
+        eurToRonRate: AdminConfigValue;
+        usdToRonRate: AdminConfigValue;
+    };
 }
 
 /* ------------------------------------------------------------------ */

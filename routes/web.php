@@ -10,13 +10,14 @@ use App\Http\Controllers\HuntedDealController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('dashboard');
     }
 
-    return view('welcome');
+    return Inertia::render('Welcome');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
