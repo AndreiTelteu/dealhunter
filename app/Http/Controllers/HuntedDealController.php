@@ -8,14 +8,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class HuntedDealController extends Controller
 {
     /**
      * Display a listing of the user's hunted deals.
      */
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         $query = Auth::user()->huntedDeals()
             ->withCount('deals')
@@ -43,27 +46,83 @@ class HuntedDealController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('search_term', 'ILIKE', "%{$search}%")
-                    ->orWhere('notes', 'ILIKE', "%{$search}%");
+                $q->whereLike('search_term', "%{$search}%")
+                    ->orWhereLike('notes', "%{$search}%");
             });
         }
 
         // Apply sorting
         $sortBy = $request->get('sort', 'updated_at');
-        $sortDirection = $request->get('direction', 'desc');
-
+        $sortDirection = $request->get('direction') === 'asc' ? 'asc' : 'desc';
         $allowedSorts = ['search_term', 'is_active', 'last_crawled_at', 'created_at', 'updated_at', 'deals_count'];
-        if (in_array($sortBy, $allowedSorts)) {
-            if ($sortBy === 'deals_count') {
-                $query->orderBy('deals_count', $sortDirection);
-            } else {
-                $query->orderBy($sortBy, $sortDirection);
-            }
-        }
+        $resolvedSort = in_array($sortBy, $allowedSorts) ? $sortBy : 'updated_at';
+        $query->orderBy($resolvedSort, $sortDirection);
 
         $huntedDeals = $query->paginate(15)->withQueryString();
 
-        return view('hunted-deals.index', compact('huntedDeals'));
+        return Inertia::render('HuntedDeals/Index', [
+            'huntedDeals' => [
+                'data' => $huntedDeals->through(fn (HuntedDeal $huntedDeal) => $this->serializeHuntedDeal($huntedDeal))->all(),
+                'links' => $huntedDeals->linkCollection()
+                    ->map(fn (array $link) => [
+                        'url' => $link['url'],
+                        'label' => $link['label'],
+                        'active' => (bool) $link['active'],
+                    ])
+                    ->all(),
+                'meta' => [
+                    'currentPage' => $huntedDeals->currentPage(),
+                    'lastPage' => $huntedDeals->lastPage(),
+                    'perPage' => $huntedDeals->perPage(),
+                    'total' => $huntedDeals->total(),
+                    'from' => $huntedDeals->firstItem(),
+                    'to' => $huntedDeals->lastItem(),
+                ],
+            ],
+            'filters' => [
+                'search' => $request->get('search'),
+                'filter' => $request->get('filter'),
+                'sort' => $resolvedSort,
+                'direction' => $sortDirection,
+                'hasActiveFilters' => $request->hasAny(['search', 'filter']),
+            ],
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'create' => route('hunted-deals.create'),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize a hunted deal for the index list surface.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDeal(HuntedDeal $huntedDeal): array
+    {
+        $snapshot = $huntedDeal->latestPriceSnapshot;
+
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes !== null ? Str::limit($huntedDeal->notes, 140) : null,
+            'dealsCount' => (int) $huntedDeal->deals_count,
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->diffForHumans(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y'),
+            'updatedAt' => $huntedDeal->updated_at->diffForHumans(),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+            'latestPriceSnapshot' => $snapshot === null ? null : [
+                'id' => $snapshot->id,
+                'averagePrice' => $snapshot->average_price !== null ? (float) $snapshot->average_price : null,
+                'minPrice' => $snapshot->min_price !== null ? (float) $snapshot->min_price : null,
+                'maxPrice' => $snapshot->max_price !== null ? (float) $snapshot->max_price : null,
+                'dealsCount' => (int) $snapshot->deals_count,
+                'priceCurrency' => $snapshot->price_currency,
+                'capturedAt' => $snapshot->captured_at?->toIso8601String() ?? '',
+            ],
+        ];
     }
 
     /**
