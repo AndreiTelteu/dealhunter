@@ -11,13 +11,13 @@ import type { SharedPageProps } from '../types';
  * optical-axis hero, demonstration spectrum chamber, and footer.
  */
 export default function Welcome(): ReactElement {
-    const { auth, appName } = usePage<SharedPageProps>().props;
+    const { auth } = usePage<SharedPageProps>().props;
     const user = auth.user;
     const year = new Date().getFullYear();
 
     return (
         <>
-            <Head title={appName} />
+            <Head title="" />
 
             <div className="flex min-h-screen flex-col">
                 {/* ============ INSTRUMENT RAIL ============ */}
