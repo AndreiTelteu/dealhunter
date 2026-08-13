@@ -3,21 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProfileController extends Controller
 {
     /**
      * Display the user's profile form.
      */
-    public function edit(Request $request): View
+    public function edit(Request $request): Response
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
+        return Inertia::render('Profile/Edit', [
+            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail
+                && ! $request->user()->hasVerifiedEmail(),
+            'status' => $request->session()->get('status'),
+            'links' => [
+                'updateProfile' => route('profile.update'),
+                'updatePassword' => route('password.update'),
+                'destroy' => route('profile.destroy'),
+                'verificationSend' => route('verification.send'),
+            ],
         ]);
     }
 
