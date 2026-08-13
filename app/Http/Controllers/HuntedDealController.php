@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ReclassifyHuntedDealIntent;
+use App\Models\Deal;
+use App\Models\DealMedia;
 use App\Models\HuntedDeal;
+use App\Models\HuntedDealPriceSnapshot;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -194,8 +199,8 @@ class HuntedDealController extends Controller
         if ($request->filled('search')) {
             $searchTerm = $request->get('search');
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'ILIKE', "%{$searchTerm}%")
-                    ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
+                $q->whereLike('title', "%{$searchTerm}%")
+                    ->orWhereLike('description', "%{$searchTerm}%");
             });
         }
 
@@ -234,11 +239,9 @@ class HuntedDealController extends Controller
         $sortDirection = $request->get('direction') === 'asc' ? 'asc' : 'desc';
 
         $allowedSorts = ['title', 'price_amount', 'location', 'last_seen_at', 'created_at'];
-        if (in_array($sortBy, $allowedSorts)) {
-            $query->orderBy($sortBy, $sortDirection);
-        } else {
-            $query->orderBy('last_seen_at', 'desc');
-        }
+        $resolvedSort = in_array($sortBy, $allowedSorts) ? $sortBy : 'last_seen_at';
+        $resolvedDirection = $sortBy === $resolvedSort ? $sortDirection : 'desc';
+        $query->orderBy($resolvedSort, $resolvedDirection);
 
         $deals = $query->paginate(20)->withQueryString();
 
@@ -259,7 +262,178 @@ class HuntedDealController extends Controller
                 ->count(),
         ];
 
-        return view('hunted-deals.show', compact('huntedDeal', 'deals', 'stats', 'filterCounts', 'matchesIntentFilter', 'priceSnapshots'));
+        return Inertia::render('HuntedDeals/Show', [
+            'huntedDeal' => $this->serializeHuntedDealShow($huntedDeal),
+            'deals' => [
+                'data' => $deals->through(fn (Deal $deal) => $this->serializeDeal($deal))->all(),
+                'links' => $deals->linkCollection()
+                    ->map(fn (array $link) => [
+                        'url' => $link['url'],
+                        'label' => $link['label'],
+                        'active' => (bool) $link['active'],
+                    ])
+                    ->all(),
+                'meta' => [
+                    'currentPage' => $deals->currentPage(),
+                    'lastPage' => $deals->lastPage(),
+                    'perPage' => $deals->perPage(),
+                    'total' => $deals->total(),
+                    'from' => $deals->firstItem(),
+                    'to' => $deals->lastItem(),
+                ],
+            ],
+            'stats' => [
+                'totalDeals' => $stats['total_deals'],
+                'newDeals24h' => $stats['new_deals_24h'],
+                'matchingIntent' => $stats['matching_intent'],
+                'likelyWorking' => $stats['likely_working'],
+                'priceDrops' => $stats['price_drops'],
+            ],
+            'filterCounts' => [
+                'total' => $filterCounts['total'],
+                'newItems' => $filterCounts['new_items'],
+                'matchesIntent' => $filterCounts['matches_intent'],
+                'likelyWorking' => $filterCounts['likely_working'],
+                'priceDrops' => $filterCounts['price_drops'],
+            ],
+            'filters' => [
+                'search' => $request->get('search'),
+                'sort' => $resolvedSort,
+                'direction' => $resolvedDirection,
+                'priceDrops' => $request->boolean('price_drops'),
+                'newItems' => $request->boolean('new_items'),
+                'matchesIntent' => $matchesIntentFilter,
+                'likelyWorking' => $request->boolean('likely_working'),
+                'hasActiveFilters' => $request->hasAny(['search', 'price_drops', 'new_items', 'matches_intent', 'likely_working']),
+            ],
+            'chart' => $this->serializeChart($priceSnapshots),
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'edit' => route('hunted-deals.edit', $huntedDeal),
+                'dealsIndex' => route('deals.index', ['hunted_deal' => $huntedDeal->id]),
+                'reset' => route('hunted-deals.show', $huntedDeal),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize the hunted deal for the show surface: identity, status,
+     * full notes and split date/time reads for the metadata block.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDealShow(HuntedDeal $huntedDeal): array
+    {
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes,
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->diffForHumans(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y'),
+            'createdAtTime' => $huntedDeal->created_at->format('H:i'),
+            'updatedAt' => $huntedDeal->updated_at->format('d M Y'),
+            'updatedAtTime' => $huntedDeal->updated_at->format('H:i'),
+            'lastCrawledAtDate' => $huntedDeal->last_crawled_at?->format('d M Y'),
+            'lastCrawledAtTime' => $huntedDeal->last_crawled_at?->format('H:i'),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+        ];
+    }
+
+    /**
+     * Serialize the price-spectrum trace for the show surface. The client
+     * draws the trace from `samples`; `latestSnapshot` covers the single
+     * reading state before a second snapshot enables a full trace.
+     *
+     * @param  Collection<int, HuntedDealPriceSnapshot>  $priceSnapshots
+     * @return array<string, mixed>
+     */
+    private function serializeChart($priceSnapshots): array
+    {
+        $hasTrace = $priceSnapshots->count() > 1;
+        $currency = $priceSnapshots->first()?->price_currency ?? 'RON';
+        $latestSnapshot = $priceSnapshots->last();
+
+        return [
+            'hasTrace' => $hasTrace,
+            'currency' => $currency,
+            'sampleCount' => $priceSnapshots->count(),
+            'firstCaptured' => $hasTrace ? $priceSnapshots->first()->captured_at->format('d M H:i') : null,
+            'lastCaptured' => $hasTrace ? $priceSnapshots->last()->captured_at->format('d M H:i') : null,
+            'samples' => $priceSnapshots
+                ->map(fn ($snapshot) => [
+                    'min' => (float) $snapshot->min_price,
+                    'average' => (float) $snapshot->average_price,
+                    'max' => (float) $snapshot->max_price,
+                    'currency' => $snapshot->price_currency ?? $currency,
+                    'count' => (int) $snapshot->deals_count,
+                    'captured' => $snapshot->captured_at->format('d M Y, H:i'),
+                    'timestamp' => $snapshot->captured_at->timestamp,
+                ])
+                ->values()
+                ->all(),
+            'latestSnapshot' => $latestSnapshot === null ? null : [
+                'minPrice' => (float) $latestSnapshot->min_price,
+                'averagePrice' => (float) $latestSnapshot->average_price,
+                'maxPrice' => (float) $latestSnapshot->max_price,
+                'priceCurrency' => $latestSnapshot->price_currency ?? $currency,
+                'capturedAt' => $latestSnapshot->captured_at->format('d M Y, H:i'),
+                'dealsCount' => (int) $latestSnapshot->deals_count,
+            ],
+        ];
+    }
+
+    /**
+     * Serialize a deal in the show-surface ledger, matching the Blade
+     * hunted-deal listing row (title 80, description 120, created-diff meta,
+     * latest-snapshot price preference, local-only media).
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeDeal(Deal $deal): array
+    {
+        $latestSnapshot = $deal->latestSnapshot;
+
+        return [
+            'id' => $deal->id,
+            'title' => Str::limit($deal->title, 80),
+            'matchesIntent' => (bool) $deal->matches_intent,
+            'intentScore' => $deal->intent_score,
+            'likelyWorking' => (bool) $deal->likely_working,
+            'description' => $deal->description !== null ? Str::limit($deal->description, 120) : null,
+            'isNew' => $deal->created_at->gte(now()->subDay()),
+            'priceAmount' => ($latestSnapshot?->price_amount ?? $deal->price_amount) !== null
+                ? (float) ($latestSnapshot?->price_amount ?? $deal->price_amount)
+                : null,
+            'priceCurrency' => $latestSnapshot?->price_currency ?? $deal->price_currency,
+            'location' => $deal->location,
+            'createdAt' => $deal->created_at->diffForHumans(),
+            'isFavorite' => (bool) $deal->is_favorite,
+            'media' => $this->serializeMedia($deal),
+            'showUrl' => route('deals.show', $deal),
+            'externalUrl' => $deal->url,
+            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
+        ];
+    }
+
+    /**
+     * Serialize downloaded local media for a deal. Remote URLs are never
+     * exposed, matching the Blade gallery behaviour.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function serializeMedia(Deal $deal): array
+    {
+        return $deal->media
+            ->filter(fn (DealMedia $media) => $media->path
+                && $media->downloaded_at !== null
+                && Storage::disk($media->disk)->exists($media->path))
+            ->values()
+            ->map(fn (DealMedia $media) => [
+                'url' => Storage::disk($media->disk)->url($media->path),
+            ])
+            ->all();
     }
 
     /**

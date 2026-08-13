@@ -152,6 +152,59 @@ export interface HuntedDeal {
     latestPriceSnapshot?: HuntedDealPriceSnapshot | null;
 }
 
+/** Full show-surface summary for a hunted deal (metadata block + header). */
+export interface HuntedDealShowSummary {
+    id: number;
+    searchTerm: string;
+    isActive: boolean;
+    notes: string | null;
+    /** Human-diff of last_crawled_at for the header, or null when never crawled. */
+    lastCrawledAt: string | null;
+    createdAt: string;
+    createdAtTime: string;
+    updatedAt: string;
+    updatedAtTime: string;
+    lastCrawledAtDate: string | null;
+    lastCrawledAtTime: string | null;
+    showUrl: string;
+    editUrl: string;
+}
+
+/** One aggregate price reading for the hunted-deal spectrum trace. */
+export interface HuntedDealChartSample {
+    min: number;
+    average: number;
+    max: number;
+    currency: string;
+    count: number;
+    /** Server-formatted "d M Y, H:i" label for the hover popup. */
+    captured: string;
+    /** Unix timestamp, used by the client to place the sample on the time axis. */
+    timestamp: number;
+}
+
+/**
+ * Price-spectrum trace for the hunted-deal show surface. `hasTrace` is true
+ * once two or more snapshots exist; a single snapshot is surfaced through
+ * `latestSnapshot`, and zero snapshots leaves both empty.
+ */
+export interface HuntedDealChart {
+    hasTrace: boolean;
+    currency: string;
+    sampleCount: number;
+    firstCaptured: string | null;
+    lastCaptured: string | null;
+    samples: HuntedDealChartSample[];
+    latestSnapshot: {
+        minPrice: number;
+        averagePrice: number;
+        maxPrice: number;
+        priceCurrency: string;
+        capturedAt: string;
+        dealsCount: number;
+    } | null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Favorites                                                           */
 /* ------------------------------------------------------------------ */

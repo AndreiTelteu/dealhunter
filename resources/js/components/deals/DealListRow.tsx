@@ -32,6 +32,8 @@ interface DealListRowProps {
     right?: ReactNode;
     /** Show the amber "Nou" badge (deals index / hunted listings). */
     showNew?: boolean;
+    /** Show the NN% intent score next to "Potrivit" (ledger default; hunted-deal listings). */
+    showIntentScore?: boolean;
 }
 
 function defaultMeta(deal: Deal, variant: DealListRowVariant): ReactNode {
@@ -145,6 +147,7 @@ export default function DealListRow({
     meta,
     right,
     showNew = false,
+    showIntentScore,
 }: DealListRowProps): ReactElement {
     const badgeRow = (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -159,7 +162,7 @@ export default function DealListRow({
                 deal={deal}
                 showNew={showNew}
                 dot={variant === 'ledger' ? 'spec' : 'glow'}
-                showIntentScore={variant === 'ledger'}
+                showIntentScore={showIntentScore ?? variant === 'ledger'}
             />
             {metadata}
         </div>
