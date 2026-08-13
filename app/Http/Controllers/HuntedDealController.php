@@ -4,16 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ReclassifyHuntedDealIntent;
 use App\Models\Deal;
-use App\Models\DealMedia;
 use App\Models\HuntedDeal;
 use App\Models\HuntedDealPriceSnapshot;
+use App\Services\DealSerializer;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -265,7 +264,14 @@ class HuntedDealController extends Controller
         return Inertia::render('HuntedDeals/Show', [
             'huntedDeal' => $this->serializeHuntedDealShow($huntedDeal),
             'deals' => [
-                'data' => $deals->through(fn (Deal $deal) => $this->serializeDeal($deal))->all(),
+                'data' => $deals->through(fn (Deal $deal) => DealSerializer::toArray($deal, [
+                    'titleLimit' => 80,
+                    'withIntentScore' => true,
+                    'withDescription' => true,
+                    'descriptionLimit' => 120,
+                    'withIsNew' => true,
+                    'withCreatedAt' => true,
+                ]))->all(),
                 'links' => $deals->linkCollection()
                     ->map(fn (array $link) => [
                         'url' => $link['url'],
@@ -382,58 +388,6 @@ class HuntedDealController extends Controller
                 'dealsCount' => (int) $latestSnapshot->deals_count,
             ],
         ];
-    }
-
-    /**
-     * Serialize a deal in the show-surface ledger, matching the Blade
-     * hunted-deal listing row (title 80, description 120, created-diff meta,
-     * latest-snapshot price preference, local-only media).
-     *
-     * @return array<string, mixed>
-     */
-    protected function serializeDeal(Deal $deal): array
-    {
-        $latestSnapshot = $deal->latestSnapshot;
-
-        return [
-            'id' => $deal->id,
-            'title' => Str::limit($deal->title, 80),
-            'matchesIntent' => (bool) $deal->matches_intent,
-            'intentScore' => $deal->intent_score,
-            'likelyWorking' => (bool) $deal->likely_working,
-            'description' => $deal->description !== null ? Str::limit($deal->description, 120) : null,
-            'isNew' => $deal->created_at->gte(now()->subDay()),
-            'priceAmount' => ($latestSnapshot?->price_amount ?? $deal->price_amount) !== null
-                ? (float) ($latestSnapshot?->price_amount ?? $deal->price_amount)
-                : null,
-            'priceCurrency' => $latestSnapshot?->price_currency ?? $deal->price_currency,
-            'location' => $deal->location,
-            'createdAt' => $deal->created_at->diffForHumans(),
-            'isFavorite' => (bool) $deal->is_favorite,
-            'media' => $this->serializeMedia($deal),
-            'showUrl' => route('deals.show', $deal),
-            'externalUrl' => $deal->url,
-            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
-        ];
-    }
-
-    /**
-     * Serialize downloaded local media for a deal. Remote URLs are never
-     * exposed, matching the Blade gallery behaviour.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    protected function serializeMedia(Deal $deal): array
-    {
-        return $deal->media
-            ->filter(fn (DealMedia $media) => $media->path
-                && $media->downloaded_at !== null
-                && Storage::disk($media->disk)->exists($media->path))
-            ->values()
-            ->map(fn (DealMedia $media) => [
-                'url' => Storage::disk($media->disk)->url($media->path),
-            ])
-            ->all();
     }
 
     /**

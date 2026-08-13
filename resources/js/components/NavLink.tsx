@@ -16,6 +16,7 @@ export default function NavLink({ href, active = false, children }: NavLinkProps
     return (
         <Link
             href={href}
+            prefetch="hover"
             aria-current={active ? 'page' : undefined}
             className={`rail-link focus-ring inline-flex items-center border-b-2 px-1 pt-1 text-xs leading-5 transition duration-150 ease-in-out ${
                 active ? 'rail-link-active' : 'border-transparent'

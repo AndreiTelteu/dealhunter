@@ -3,15 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deal;
-use App\Models\DealMedia;
 use App\Models\Favorite;
 use App\Models\User;
+use App\Services\DealSerializer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -107,60 +105,15 @@ class FavoriteController extends Controller
         return [
             'id' => $favorite->id,
             'createdAt' => $favorite->created_at->diffForHumans(),
-            'deal' => $this->serializeDeal($favorite->deal),
+            'deal' => DealSerializer::toArray($favorite->deal, [
+                'titleLimit' => 100,
+                'withIntentScore' => true,
+                'withDescription' => true,
+                'descriptionLimit' => 150,
+                'withSearchTerm' => true,
+                'withHuntedDealUrl' => true,
+                'isFavorite' => true,
+            ]),
         ];
-    }
-
-    /**
-     * Serialize a favorited deal for the favorites index. Mirrors
-     * DealController::serializeDeal (title/description limits, latest
-     * snapshot price, local-only media) without the snapshots count the
-     * Blade favorites surface never showed.
-     *
-     * @return array<string, mixed>
-     */
-    protected function serializeDeal(Deal $deal): array
-    {
-        $latestSnapshot = $deal->latestSnapshot;
-
-        return [
-            'id' => $deal->id,
-            'title' => Str::limit($deal->title, 100),
-            'matchesIntent' => (bool) $deal->matches_intent,
-            'intentScore' => $deal->intent_score,
-            'likelyWorking' => (bool) $deal->likely_working,
-            'description' => $deal->description !== null ? Str::limit($deal->description, 150) : null,
-            'priceAmount' => ($latestSnapshot?->price_amount ?? $deal->price_amount) !== null
-                ? (float) ($latestSnapshot?->price_amount ?? $deal->price_amount)
-                : null,
-            'priceCurrency' => $latestSnapshot?->price_currency ?? $deal->price_currency,
-            'location' => $deal->location,
-            'searchTerm' => $deal->huntedDeal?->search_term,
-            'huntedDealUrl' => $deal->huntedDeal ? route('hunted-deals.show', $deal->huntedDeal) : null,
-            'isFavorite' => true,
-            'media' => $this->serializeMedia($deal),
-            'showUrl' => route('deals.show', $deal),
-            'externalUrl' => $deal->url,
-            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
-        ];
-    }
-
-    /**
-     * Serialize downloaded local media for a deal. Remote URLs are never
-     * exposed, matching the Blade gallery behaviour.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    protected function serializeMedia(Deal $deal): array
-    {
-        return $deal->media
-            ->filter(fn (DealMedia $media) => $media->path
-                && $media->downloaded_at !== null
-                && Storage::disk($media->disk)->exists($media->path))
-            ->values()
-            ->map(fn (DealMedia $media) => [
-                'url' => Storage::disk($media->disk)->url($media->path),
-            ])
-            ->all();
     }
 }

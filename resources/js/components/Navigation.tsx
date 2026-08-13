@@ -75,6 +75,7 @@ export default function Navigation() {
                     <div className="relative z-10 flex shrink-0 items-center">
                         <Link
                             href={routes.dashboard}
+                            prefetch="hover"
                             className="brand-mark focus-ring flex shrink-0 items-center rounded-sm"
                             aria-label="Deal Hunter - Panou"
                         >

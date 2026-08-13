@@ -311,7 +311,7 @@ export default function DealsShow(): ReactElement {
                 <h2 className="font-sans text-xl font-bold leading-tight text-[#eaf4f6] sm:text-2xl">{current.title}</h2>
                 <p className="mt-2 text-sm text-dim">
                     Căutare:{' '}
-                    <Link href={huntedDeal.showUrl} className="text-beam hover:underline">
+                    <Link href={huntedDeal.showUrl} prefetch="hover" className="text-beam hover:underline">
                         {huntedDeal.searchTerm}
                     </Link>
                 </p>
@@ -518,7 +518,7 @@ export default function DealsShow(): ReactElement {
                                 <p className={`mt-2 font-mono text-[0.7rem] ${huntedDeal.isActive ? 'text-em-green' : 'text-dim'}`}>
                                     {huntedDeal.isActive ? 'Activă' : 'În pauză'}
                                 </p>
-                                <Link href={huntedDeal.showUrl} className="rail-link focus-ring mt-4 rounded-sm border-b pb-0.5 text-[0.6rem]">
+                                <Link href={huntedDeal.showUrl} prefetch="hover" className="rail-link focus-ring mt-4 rounded-sm border-b pb-0.5 text-[0.6rem]">
                                     Vezi căutarea &rarr;
                                 </Link>
                             </section>

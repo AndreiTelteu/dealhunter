@@ -81,6 +81,7 @@ export default function StatCard({
         return (
             <Link
                 href={href}
+                prefetch="hover"
                 className={`${surfaceClass} hover:border-[rgba(89,227,255,0.35)] transition-colors focus-ring`}
             >
                 {inner}

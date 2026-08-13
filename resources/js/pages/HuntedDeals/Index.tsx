@@ -212,6 +212,7 @@ export default function HuntedDealsIndex(): ReactElement {
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                                                         <Link
                                                             href={huntedDeal.showUrl}
+                                                            prefetch="hover"
                                                             className="focus-ring rounded-sm font-sans font-semibold text-[#eaf4f6] transition-colors break-words group-hover:text-beam"
                                                         >
                                                             {huntedDeal.searchTerm}
@@ -259,12 +260,14 @@ export default function HuntedDealsIndex(): ReactElement {
                                                     {snapshotReadout(huntedDeal)}
                                                     <Link
                                                         href={huntedDeal.showUrl}
+                                                        prefetch="hover"
                                                         className="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]"
                                                     >
                                                         Detalii
                                                     </Link>
                                                     <Link
                                                         href={huntedDeal.editUrl}
+                                                        prefetch="hover"
                                                         className="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]"
                                                     >
                                                         Editează

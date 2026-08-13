@@ -20,7 +20,7 @@ interface FavoritesIndexPageProps extends SharedPageProps {
 function favoriteMeta(favorite: Favorite): ReactNode {
     const { deal } = favorite;
     const searchLink = deal.huntedDealUrl ? (
-        <Link href={deal.huntedDealUrl} className="text-beam hover:underline">
+        <Link href={deal.huntedDealUrl} prefetch="hover" className="text-beam hover:underline">
             {deal.searchTerm}
         </Link>
     ) : (

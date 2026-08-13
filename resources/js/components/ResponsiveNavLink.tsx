@@ -22,6 +22,7 @@ export default function ResponsiveNavLink({
         <Link
             href={href}
             method={method}
+            prefetch={method === 'get' ? 'hover' : undefined}
             as="button"
             type="button"
             aria-current={active ? 'page' : undefined}

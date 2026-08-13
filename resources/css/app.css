@@ -42,10 +42,6 @@
             font-size: 16px;
         }
     }
-
-    [x-cloak] {
-        display: none !important;
-    }
 }
 
 @layer components {

@@ -38,7 +38,7 @@ interface DealListRowProps {
 
 function defaultMeta(deal: Deal, variant: DealListRowVariant): ReactNode {
     const searchLink = deal.huntedDealUrl ? (
-        <Link href={deal.huntedDealUrl} className="text-beam hover:underline">
+        <Link href={deal.huntedDealUrl} prefetch="hover" className="text-beam hover:underline">
             {deal.searchTerm}
         </Link>
     ) : (
@@ -111,7 +111,7 @@ function ledgerPriceBlock(deal: Deal): ReactElement {
 function ledgerActions(deal: Deal): ReactElement {
     return (
         <div className="flex shrink-0 items-center gap-4">
-            <Link href={deal.showUrl} className="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]">
+            <Link href={deal.showUrl} prefetch="hover" className="rail-link focus-ring rounded-sm border-b pb-0.5 text-[0.65rem]">
                 Detalii
             </Link>
             {deal.externalUrl && (
@@ -154,6 +154,7 @@ export default function DealListRow({
             {leadingActions}
             <Link
                 href={deal.showUrl}
+                prefetch="hover"
                 className="focus-ring break-words rounded-sm font-sans font-semibold text-[#eaf4f6] transition-colors group-hover:text-beam"
             >
                 {truncate(deal.title, titleLimit)}

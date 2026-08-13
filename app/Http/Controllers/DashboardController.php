@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deal;
-use App\Models\DealMedia;
 use App\Models\User;
+use App\Services\DealSerializer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -52,7 +51,12 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
-            ->map(fn (Deal $deal) => $this->serializeDeal($deal))
+            ->map(fn (Deal $deal) => DealSerializer::toArray($deal, [
+                'titleLimit' => 60,
+                'useLatestPrice' => false,
+                'withCreatedAt' => true,
+                'withSearchTerm' => true,
+            ]))
             ->all();
 
         return Inertia::render('Dashboard/Index', [
@@ -79,49 +83,5 @@ class DashboardController extends Controller
     {
         return Deal::query()
             ->whereHas('huntedDeal', fn (Builder $query) => $query->where('user_id', $user->id));
-    }
-
-    /**
-     * Serialize a deal into an explicit, frontend-safe array.
-     *
-     * @return array<string, mixed>
-     */
-    protected function serializeDeal(Deal $deal): array
-    {
-        return [
-            'id' => $deal->id,
-            'title' => Str::limit($deal->title, 60),
-            'matchesIntent' => (bool) $deal->matches_intent,
-            'likelyWorking' => (bool) $deal->likely_working,
-            'priceAmount' => $deal->price_amount !== null ? (float) $deal->price_amount : null,
-            'priceCurrency' => $deal->price_currency,
-            'location' => $deal->location,
-            'createdAt' => $deal->created_at->diffForHumans(),
-            'searchTerm' => $deal->huntedDeal?->search_term,
-            'isFavorite' => (bool) $deal->is_favorite,
-            'media' => $this->serializeMedia($deal),
-            'showUrl' => route('deals.show', $deal),
-            'externalUrl' => $deal->url,
-            'toggleFavoriteUrl' => route('deals.favorite.toggle', $deal),
-        ];
-    }
-
-    /**
-     * Serialize downloaded local media for a deal. Remote URLs are never
-     * exposed, matching the Blade dashboard behaviour.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    protected function serializeMedia(Deal $deal): array
-    {
-        return $deal->media
-            ->filter(fn (DealMedia $media) => $media->path
-                && $media->downloaded_at !== null
-                && Storage::disk($media->disk)->exists($media->path))
-            ->values()
-            ->map(fn (DealMedia $media) => [
-                'url' => Storage::disk($media->disk)->url($media->path),
-            ])
-            ->all();
     }
 }
