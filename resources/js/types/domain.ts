@@ -274,3 +274,48 @@ export interface AiClassificationConfig {
     currentModel: string | null;
     aiEnabled: boolean;
 }
+
+/**
+ * AJAX contract of POST /ai-classification/test (snake_case, unchanged from
+ * the Blade-era endpoint). These are NOT Inertia props — the endpoint is a
+ * plain JSON response for a non-navigation fetch().
+ */
+export interface AiClassificationAiResult {
+    intent_score: number;
+    matches_intent: boolean;
+    likely_working: boolean | null;
+    confidence: number;
+    intent_confidence: number;
+    working_confidence: number;
+    reasoning: string;
+}
+
+export interface AiClassificationKeywordResult {
+    matches_intent: boolean;
+    intent_score: number | null;
+    is_exact_match: boolean;
+    likely_working: boolean | null;
+    confidence: number;
+    reasoning: string;
+    is_high_confidence: boolean;
+    working_condition_string: string;
+}
+
+export interface AiClassificationResult {
+    success: boolean;
+    ai_result?: AiClassificationAiResult;
+    keyword_result?: AiClassificationKeywordResult;
+    comparison?: {
+        intent_match: boolean;
+        working_condition_match: boolean;
+    };
+    error?: string;
+    trace?: string | null;
+}
+
+/** AJAX contract of POST /ai-classification/test-connection. */
+export interface AiConnectionTestResponse {
+    success: boolean;
+    result?: AiConnectionTest;
+    error?: string;
+}
