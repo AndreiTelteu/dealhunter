@@ -48,7 +48,7 @@ interface HuntedDealsShowPageProps extends SharedPageProps {
 }
 
 /* ------------------------------------------------------------------ */
-/* Price-spectrum trace (port of the Blade Alpine chart)               */
+/* Price-spectrum trace (port of the Blade chart)                      */
 /* ------------------------------------------------------------------ */
 
 type Metric = 'min' | 'average' | 'max';

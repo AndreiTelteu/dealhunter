@@ -10,7 +10,7 @@ interface PhraseTagInputProps {
     label: string;
     description: string;
     placeholder?: string;
-    /** Initial tags (controller prop or old input) — uncontrolled, like Alpine. */
+    /** Initial tags (controller prop or old input) — uncontrolled. */
     values?: string[];
     tone?: PhraseTone;
     /** Server validation messages for this field (e.g. from `useForm().errors`). */
@@ -35,7 +35,7 @@ function normalizeInitial(values: string[] | undefined): string[] {
 
 /**
  * React port of components/phrase-tag-input.blade.php — tag editor for
- * preferred/excluded phrases. Same behavior as the Alpine original:
+ * preferred/excluded phrases. Same behavior as the Blade original:
  * Enter, comma or blur commits the draft (comma-split), case-insensitive
  * dedupe, backspace on an empty draft removes the last tag, and every tag
  * submits as a `${name}[]` hidden input inside the enclosing form.

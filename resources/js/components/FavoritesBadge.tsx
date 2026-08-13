@@ -10,7 +10,7 @@ interface FavoritesBadgeProps {
 /**
  * Port of the favorites badge in layouts/navigation.blade.php.
  * Keeps listening for the `favorites:updated` CustomEvent emitted by
- * favorite-toggle interactions (same contract as the Alpine version).
+ * favorite-toggle interactions (same contract as the Blade version).
  */
 export default function FavoritesBadge({ count: initialCount, compact = false }: FavoritesBadgeProps) {
     const [count, setCount] = useState(initialCount);
