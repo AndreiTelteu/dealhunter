@@ -6,8 +6,10 @@ use App\Services\Crawlers\CrawlerException;
 use App\Services\Crawlers\Mcp\PlaywrightMcpClient;
 use App\Services\Crawlers\OlxCrawlerService;
 use App\Services\PriceParserService;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use Tests\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 class OlxCrawlerServiceTest extends TestCase
 {
     public function test_it_extracts_details_and_waits_for_new_page_listings(): void

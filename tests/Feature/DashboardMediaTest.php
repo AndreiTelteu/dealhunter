@@ -8,6 +8,7 @@ use App\Models\HuntedDeal;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class DashboardMediaTest extends TestCase
@@ -28,10 +29,14 @@ class DashboardMediaTest extends TestCase
         Storage::disk('public')->put($path, 'local-image');
         DealMedia::create(['deal_id' => $deal->id, 'source_url' => 'https://frankfurt.apollo.olxcdn.com/remote.jpg', 'source_hash' => hash('sha256', 'https://frankfurt.apollo.olxcdn.com/remote.jpg'), 'disk' => 'public', 'path' => $path, 'position' => 0, 'downloaded_at' => now()]);
 
+        $localUrl = Storage::disk('public')->url($path);
+
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee(Storage::disk('public')->url($path))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard/Index')
+                ->where('recentDeals.0.media.0.url', $localUrl))
             ->assertDontSee('https://frankfurt.apollo.olxcdn.com/remote.jpg');
     }
 }

@@ -105,4 +105,17 @@ return [
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Classes
+    |--------------------------------------------------------------------------
+    |
+    | Hardens cache unserialization against PHP object injection if APP_KEY
+    | leaks (Laravel 13 default). This application only caches scalars and
+    | strings (health flag, AI responses), so no classes are allow-listed.
+    |
+    */
+
+    'serializable_classes' => false,
+
 ];

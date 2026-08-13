@@ -121,6 +121,21 @@ class DealIngestionService extends BaseService
             $snapshotCreated = false;
             $imagesChanged = $isNew || $this->normalizeComparableValue($existingDeal->image_urls) !== $this->normalizeComparableValue($listing->imageUrls);
 
+            // Backfill gaps on deals we already know: pick up a missing
+            // description and missing images even when the tracked listing
+            // fields did not change.
+            $missingDescription = ! $isNew
+                && $this->isBlank($existingDeal->description)
+                && ! $this->isBlank($listing->description);
+
+            $missingImages = ! $isNew
+                && empty($existingDeal->image_urls)
+                && $listing->imageUrls !== [];
+
+            $mediaNotDownloaded = ! $isNew
+                && $listing->imageUrls !== []
+                && $existingDeal->media()->doesntExist();
+
             if ($isNew) {
                 // Create new deal
                 $deal = $this->createNewDeal($huntedDeal, $listing, $now);
@@ -134,7 +149,9 @@ class DealIngestionService extends BaseService
                 ]);
             } else {
                 // Update existing deal
-                $hasChanges = $this->hasSignificantChanges($existingDeal, $listing);
+                $hasChanges = $this->hasSignificantChanges($existingDeal, $listing)
+                    || $missingDescription
+                    || $missingImages;
 
                 if ($hasChanges) {
                     // Re-classify if there are significant changes
@@ -172,7 +189,7 @@ class DealIngestionService extends BaseService
                 $this->removeObsoleteMediaAfterCommit($deal, $listing->imageUrls);
             }
 
-            if ($imagesChanged && $listing->imageUrls !== []) {
+            if (($imagesChanged || $mediaNotDownloaded) && $listing->imageUrls !== []) {
                 DB::afterCommit(fn (): mixed => DownloadDealMedia::dispatch($deal->id));
             }
 
@@ -340,6 +357,14 @@ class DealIngestionService extends BaseService
         }
 
         return $value;
+    }
+
+    /**
+     * Whether a value is considered empty (null or a blank string).
+     */
+    private function isBlank(mixed $value): bool
+    {
+        return $value === null || $value === '' || (is_string($value) && trim($value) === '');
     }
 
     /**

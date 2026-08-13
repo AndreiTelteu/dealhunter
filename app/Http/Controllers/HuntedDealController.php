@@ -3,19 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ReclassifyHuntedDealIntent;
+use App\Models\Deal;
 use App\Models\HuntedDeal;
+use App\Models\HuntedDealPriceSnapshot;
+use App\Services\DealSerializer;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class HuntedDealController extends Controller
 {
     /**
      * Display a listing of the user's hunted deals.
      */
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         $query = Auth::user()->huntedDeals()
             ->withCount('deals')
@@ -43,41 +51,102 @@ class HuntedDealController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('search_term', 'ILIKE', "%{$search}%")
-                    ->orWhere('notes', 'ILIKE', "%{$search}%");
+                $q->whereLike('search_term', "%{$search}%")
+                    ->orWhereLike('notes', "%{$search}%");
             });
         }
 
         // Apply sorting
         $sortBy = $request->get('sort', 'updated_at');
-        $sortDirection = $request->get('direction', 'desc');
-
+        $sortDirection = $request->get('direction') === 'asc' ? 'asc' : 'desc';
         $allowedSorts = ['search_term', 'is_active', 'last_crawled_at', 'created_at', 'updated_at', 'deals_count'];
-        if (in_array($sortBy, $allowedSorts)) {
-            if ($sortBy === 'deals_count') {
-                $query->orderBy('deals_count', $sortDirection);
-            } else {
-                $query->orderBy($sortBy, $sortDirection);
-            }
-        }
+        $resolvedSort = in_array($sortBy, $allowedSorts) ? $sortBy : 'updated_at';
+        $query->orderBy($resolvedSort, $sortDirection);
 
         $huntedDeals = $query->paginate(15)->withQueryString();
 
-        return view('hunted-deals.index', compact('huntedDeals'));
+        return Inertia::render('HuntedDeals/Index', [
+            'huntedDeals' => [
+                'data' => $huntedDeals->through(fn (HuntedDeal $huntedDeal) => $this->serializeHuntedDeal($huntedDeal))->all(),
+                'links' => $huntedDeals->linkCollection()
+                    ->map(fn (array $link) => [
+                        'url' => $link['url'],
+                        'label' => $link['label'],
+                        'active' => (bool) $link['active'],
+                    ])
+                    ->all(),
+                'meta' => [
+                    'currentPage' => $huntedDeals->currentPage(),
+                    'lastPage' => $huntedDeals->lastPage(),
+                    'perPage' => $huntedDeals->perPage(),
+                    'total' => $huntedDeals->total(),
+                    'from' => $huntedDeals->firstItem(),
+                    'to' => $huntedDeals->lastItem(),
+                ],
+            ],
+            'filters' => [
+                'search' => $request->get('search'),
+                'filter' => $request->get('filter'),
+                'sort' => $resolvedSort,
+                'direction' => $sortDirection,
+                'hasActiveFilters' => $request->hasAny(['search', 'filter']),
+            ],
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'create' => route('hunted-deals.create'),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize a hunted deal for the index list surface.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDeal(HuntedDeal $huntedDeal): array
+    {
+        $snapshot = $huntedDeal->latestPriceSnapshot;
+
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes !== null ? Str::limit($huntedDeal->notes, 140) : null,
+            'dealsCount' => (int) $huntedDeal->deals_count,
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->diffForHumans(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y'),
+            'updatedAt' => $huntedDeal->updated_at->diffForHumans(),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+            'latestPriceSnapshot' => $snapshot === null ? null : [
+                'id' => $snapshot->id,
+                'averagePrice' => $snapshot->average_price !== null ? (float) $snapshot->average_price : null,
+                'minPrice' => $snapshot->min_price !== null ? (float) $snapshot->min_price : null,
+                'maxPrice' => $snapshot->max_price !== null ? (float) $snapshot->max_price : null,
+                'dealsCount' => (int) $snapshot->deals_count,
+                'priceCurrency' => $snapshot->price_currency,
+                'capturedAt' => $snapshot->captured_at?->toIso8601String() ?? '',
+            ],
+        ];
     }
 
     /**
      * Show the form for creating a new hunted deal.
      */
-    public function create()
+    public function create(): Response
     {
-        return view('hunted-deals.create');
+        return Inertia::render('HuntedDeals/Create', [
+            'links' => [
+                'store' => route('hunted-deals.store'),
+                'index' => route('hunted-deals.index'),
+            ],
+        ]);
     }
 
     /**
      * Store a newly created hunted deal in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'search_term' => ['required', 'string', 'max:255'],
@@ -95,9 +164,7 @@ class HuntedDealController extends Controller
             ->first();
 
         if ($existingHuntedDeal) {
-            return back()
-                ->withInput()
-                ->withErrors(['search_term' => 'You already have a hunted deal with this search term.']);
+            return back()->withErrors(['search_term' => 'You already have a hunted deal with this search term.']);
         }
 
         $validated['user_id'] = Auth::id();
@@ -131,8 +198,8 @@ class HuntedDealController extends Controller
         if ($request->filled('search')) {
             $searchTerm = $request->get('search');
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'ILIKE', "%{$searchTerm}%")
-                    ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
+                $q->whereLike('title', "%{$searchTerm}%")
+                    ->orWhereLike('description', "%{$searchTerm}%");
             });
         }
 
@@ -171,11 +238,9 @@ class HuntedDealController extends Controller
         $sortDirection = $request->get('direction') === 'asc' ? 'asc' : 'desc';
 
         $allowedSorts = ['title', 'price_amount', 'location', 'last_seen_at', 'created_at'];
-        if (in_array($sortBy, $allowedSorts)) {
-            $query->orderBy($sortBy, $sortDirection);
-        } else {
-            $query->orderBy('last_seen_at', 'desc');
-        }
+        $resolvedSort = in_array($sortBy, $allowedSorts) ? $sortBy : 'last_seen_at';
+        $resolvedDirection = $sortBy === $resolvedSort ? $sortDirection : 'desc';
+        $query->orderBy($resolvedSort, $resolvedDirection);
 
         $deals = $query->paginate(20)->withQueryString();
 
@@ -196,7 +261,133 @@ class HuntedDealController extends Controller
                 ->count(),
         ];
 
-        return view('hunted-deals.show', compact('huntedDeal', 'deals', 'stats', 'filterCounts', 'matchesIntentFilter', 'priceSnapshots'));
+        return Inertia::render('HuntedDeals/Show', [
+            'huntedDeal' => $this->serializeHuntedDealShow($huntedDeal),
+            'deals' => [
+                'data' => $deals->through(fn (Deal $deal) => DealSerializer::toArray($deal, [
+                    'titleLimit' => 80,
+                    'withIntentScore' => true,
+                    'withDescription' => true,
+                    'descriptionLimit' => 120,
+                    'withIsNew' => true,
+                    'withCreatedAt' => true,
+                ]))->all(),
+                'links' => $deals->linkCollection()
+                    ->map(fn (array $link) => [
+                        'url' => $link['url'],
+                        'label' => $link['label'],
+                        'active' => (bool) $link['active'],
+                    ])
+                    ->all(),
+                'meta' => [
+                    'currentPage' => $deals->currentPage(),
+                    'lastPage' => $deals->lastPage(),
+                    'perPage' => $deals->perPage(),
+                    'total' => $deals->total(),
+                    'from' => $deals->firstItem(),
+                    'to' => $deals->lastItem(),
+                ],
+            ],
+            'stats' => [
+                'totalDeals' => $stats['total_deals'],
+                'newDeals24h' => $stats['new_deals_24h'],
+                'matchingIntent' => $stats['matching_intent'],
+                'likelyWorking' => $stats['likely_working'],
+                'priceDrops' => $stats['price_drops'],
+            ],
+            'filterCounts' => [
+                'total' => $filterCounts['total'],
+                'newItems' => $filterCounts['new_items'],
+                'matchesIntent' => $filterCounts['matches_intent'],
+                'likelyWorking' => $filterCounts['likely_working'],
+                'priceDrops' => $filterCounts['price_drops'],
+            ],
+            'filters' => [
+                'search' => $request->get('search'),
+                'sort' => $resolvedSort,
+                'direction' => $resolvedDirection,
+                'priceDrops' => $request->boolean('price_drops'),
+                'newItems' => $request->boolean('new_items'),
+                'matchesIntent' => $matchesIntentFilter,
+                'likelyWorking' => $request->boolean('likely_working'),
+                'hasActiveFilters' => $request->hasAny(['search', 'price_drops', 'new_items', 'matches_intent', 'likely_working']),
+            ],
+            'chart' => $this->serializeChart($priceSnapshots),
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'edit' => route('hunted-deals.edit', $huntedDeal),
+                'dealsIndex' => route('deals.index', ['hunted_deal' => $huntedDeal->id]),
+                'reset' => route('hunted-deals.show', $huntedDeal),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize the hunted deal for the show surface: identity, status,
+     * full notes and split date/time reads for the metadata block.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDealShow(HuntedDeal $huntedDeal): array
+    {
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes,
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->diffForHumans(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y'),
+            'createdAtTime' => $huntedDeal->created_at->format('H:i'),
+            'updatedAt' => $huntedDeal->updated_at->format('d M Y'),
+            'updatedAtTime' => $huntedDeal->updated_at->format('H:i'),
+            'lastCrawledAtDate' => $huntedDeal->last_crawled_at?->format('d M Y'),
+            'lastCrawledAtTime' => $huntedDeal->last_crawled_at?->format('H:i'),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+        ];
+    }
+
+    /**
+     * Serialize the price-spectrum trace for the show surface. The client
+     * draws the trace from `samples`; `latestSnapshot` covers the single
+     * reading state before a second snapshot enables a full trace.
+     *
+     * @param  Collection<int, HuntedDealPriceSnapshot>  $priceSnapshots
+     * @return array<string, mixed>
+     */
+    private function serializeChart($priceSnapshots): array
+    {
+        $hasTrace = $priceSnapshots->count() > 1;
+        $currency = $priceSnapshots->first()?->price_currency ?? 'RON';
+        $latestSnapshot = $priceSnapshots->last();
+
+        return [
+            'hasTrace' => $hasTrace,
+            'currency' => $currency,
+            'sampleCount' => $priceSnapshots->count(),
+            'firstCaptured' => $hasTrace ? $priceSnapshots->first()->captured_at->format('d M H:i') : null,
+            'lastCaptured' => $hasTrace ? $priceSnapshots->last()->captured_at->format('d M H:i') : null,
+            'samples' => $priceSnapshots
+                ->map(fn ($snapshot) => [
+                    'min' => (float) $snapshot->min_price,
+                    'average' => (float) $snapshot->average_price,
+                    'max' => (float) $snapshot->max_price,
+                    'currency' => $snapshot->price_currency ?? $currency,
+                    'count' => (int) $snapshot->deals_count,
+                    'captured' => $snapshot->captured_at->format('d M Y, H:i'),
+                    'timestamp' => $snapshot->captured_at->timestamp,
+                ])
+                ->values()
+                ->all(),
+            'latestSnapshot' => $latestSnapshot === null ? null : [
+                'minPrice' => (float) $latestSnapshot->min_price,
+                'averagePrice' => (float) $latestSnapshot->average_price,
+                'maxPrice' => (float) $latestSnapshot->max_price,
+                'priceCurrency' => $latestSnapshot->price_currency ?? $currency,
+                'capturedAt' => $latestSnapshot->captured_at->format('d M Y, H:i'),
+                'dealsCount' => (int) $latestSnapshot->deals_count,
+            ],
+        ];
     }
 
     /**
@@ -227,20 +418,50 @@ class HuntedDealController extends Controller
     /**
      * Show the form for editing the specified hunted deal.
      */
-    public function edit(HuntedDeal $huntedDeal)
+    public function edit(HuntedDeal $huntedDeal): Response
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {
             abort(404);
         }
 
-        return view('hunted-deals.edit', compact('huntedDeal'));
+        return Inertia::render('HuntedDeals/Edit', [
+            'huntedDeal' => $this->serializeHuntedDealForm($huntedDeal),
+            'links' => [
+                'index' => route('hunted-deals.index'),
+                'update' => route('hunted-deals.update', $huntedDeal),
+                'destroy' => route('hunted-deals.destroy', $huntedDeal),
+            ],
+        ]);
+    }
+
+    /**
+     * Serialize a hunted deal for the create/edit form surfaces.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHuntedDealForm(HuntedDeal $huntedDeal): array
+    {
+        return [
+            'id' => $huntedDeal->id,
+            'searchTerm' => $huntedDeal->search_term,
+            'isActive' => (bool) $huntedDeal->is_active,
+            'notes' => $huntedDeal->notes,
+            'excludedPhrases' => $huntedDeal->excluded_phrases ?? [],
+            'preferredPhrases' => $huntedDeal->preferred_phrases ?? [],
+            'dealsCount' => (int) $huntedDeal->deals()->count(),
+            'createdAt' => $huntedDeal->created_at->format('d M Y, H:i'),
+            'updatedAt' => $huntedDeal->updated_at->format('d M Y, H:i'),
+            'lastCrawledAt' => $huntedDeal->last_crawled_at?->format('d M Y, H:i'),
+            'showUrl' => route('hunted-deals.show', $huntedDeal),
+            'editUrl' => route('hunted-deals.edit', $huntedDeal),
+        ];
     }
 
     /**
      * Update the specified hunted deal in storage.
      */
-    public function update(Request $request, HuntedDeal $huntedDeal)
+    public function update(Request $request, HuntedDeal $huntedDeal): RedirectResponse
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {
@@ -337,7 +558,7 @@ class HuntedDealController extends Controller
     /**
      * Remove the specified hunted deal from storage.
      */
-    public function destroy(HuntedDeal $huntedDeal)
+    public function destroy(HuntedDeal $huntedDeal): RedirectResponse
     {
         // Ensure the hunted deal belongs to the authenticated user
         if ($huntedDeal->user_id !== Auth::id()) {
